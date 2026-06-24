@@ -19,6 +19,7 @@ const modeLabel = document.getElementById("modeLabel");
 const krakenModeLabel = document.getElementById("krakenModeLabel");
 const postTypeField = document.getElementById("postType");
 const episodeOnlyFields = document.getElementById("episodeOnlyFields");
+const submitActionField = document.getElementById("submitAction");
 
 const examplePayload = {
   postType: "episode",
@@ -37,7 +38,7 @@ const examplePayload = {
 };
 const krakenExamplePayload = {
   krakenUrl: "https://krakenfiles.com/view/aVRl627NTQ/file.html",
-  submitAction: "save",
+  submitAction: "publish",
   checkOnly: false,
 };
 
@@ -60,6 +61,7 @@ function togglePostTypeFields() {
   const isTv = postTypeField.value === "tv";
 
   episodeOnlyFields.hidden = isTv;
+  submitActionField.value = isTv ? "publish" : "save";
 
   const fields = episodeOnlyFields.querySelectorAll("input, textarea, select");
   fields.forEach((field) => {
@@ -140,7 +142,7 @@ function readKrakenPayload() {
   return {
     krakenUrl: String(formData.get("krakenUrl") || "").trim(),
     downloadUrl: String(formData.get("krakenUrl") || "").trim(),
-    submitAction: String(formData.get("krakenSubmitAction") || "save"),
+    submitAction: String(formData.get("krakenSubmitAction") || "publish"),
     checkOnly: document.getElementById("krakenCheckOnly").checked,
   };
 }
@@ -207,6 +209,7 @@ function formatKrakenLog(result) {
           skipped: result.episode.skipped,
           reason: result.episode.reason,
           existing: result.episode.existing?.slug || null,
+          linkedTvUpdate: result.episode.result?.linkedTvUpdate || null,
         },
         null,
         2,
@@ -228,6 +231,12 @@ function formatKrakenLog(result) {
     result.episode.result.executionLog.forEach((item, index) => {
       lines.push(`${index + 1}. ${item}`);
     });
+  }
+
+  if (result.episode?.result?.linkedTvUpdate) {
+    lines.push("");
+    lines.push("Update Tanggal TV:");
+    lines.push(JSON.stringify(result.episode.result.linkedTvUpdate, null, 2));
   }
 
   lines.push("");

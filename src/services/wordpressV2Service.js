@@ -161,8 +161,13 @@ function buildEpisodePayload(payload, parsedFile, mediaLinks) {
     downloadUrl: mediaLinks.downloadUrl,
     serverTitle: payload.serverTitle || parsedFile.quality || "krakenfiles",
     downloadTitle: payload.downloadTitle || parsedFile.quality || "krakenfiles",
-    submitAction: payload.episodeSubmitAction || payload.submitAction || "save",
-    touchLinkedTvShowAfterSave: false,
+    submitAction:
+      payload.episodeSubmitAction || payload.submitAction || "publish",
+    touchLinkedTvShowAfterSave:
+      payload.touchLinkedTvShowAfterSave !== undefined
+        ? Boolean(payload.touchLinkedTvShowAfterSave)
+        : true,
+    linkedTvDateMode: payload.linkedTvDateMode || "publish-now",
   };
 }
 
@@ -170,7 +175,7 @@ function buildTvPayload(payload, parsedFile) {
   return {
     ...payload,
     tmdbId: parsedFile.tmdbId,
-    submitAction: payload.tvSubmitAction || payload.submitAction || "save",
+    submitAction: payload.tvSubmitAction || payload.submitAction || "publish",
   };
 }
 
@@ -343,6 +348,15 @@ async function processKrakenUpload(payload) {
           ? "Episode berhasil dibuat."
           : `Episode gagal dibuat: ${episodeAction.result?.error || "unknown error"}.`,
       );
+
+      const linkedTvUpdate = episodeAction.result?.linkedTvUpdate;
+      if (episodeAction.created && linkedTvUpdate) {
+        processLog.push(
+          linkedTvUpdate.updated
+            ? `Tanggal TV ikut di-update: ${linkedTvUpdate.title}.`
+            : `Tanggal TV tidak berubah: ${linkedTvUpdate.reason || "unknown reason"}.`,
+        );
+      }
     }
   }
 
