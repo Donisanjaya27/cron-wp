@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Episode Automation</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero-card">
+        <p class="eyebrow">WordPress Episode Tool</p>
+        <h1>Input episode dari HP</h1>
+        <p class="hero-copy">
+          Form ini langsung terhubung ke backend Playwright untuk isi halaman
+          WordPress episode.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Form Episode</h2>
+          <span class="badge">Mobile First</span>
+        </div>
+
+        <form id="episode-form" class="episode-form">
+          <label class="field">
+            <span>Jenis Post</span>
+            <select id="postType" name="postType">
+              <option value="episode" selected>Episode</option>
+              <option value="tv">TV Show</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>TMDB ID</span>
+            <input
+              type="number"
+              id="tmdbId"
+              name="tmdbId"
+              value="292696"
+              required
+            />
+          </label>
+
+          <div id="episodeOnlyFields">
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Season</span>
+                <input
+                  type="number"
+                  id="seasonNumber"
+                  name="seasonNumber"
+                  value="1"
+                  required
+                />
+              </label>
+
+              <label class="field">
+                <span>Episode</span>
+                <input
+                  type="number"
+                  id="episodeNumber"
+                  name="episodeNumber"
+                  value="30"
+                  required
+                />
+              </label>
+            </div>
+
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Server</span>
+                <input
+                  type="number"
+                  id="serverNumber"
+                  name="serverNumber"
+                  value="1"
+                  min="1"
+                  max="15"
+                  required
+                />
+              </label>
+
+              <label class="field">
+                <span>Aksi</span>
+                <select id="submitAction" name="submitAction">
+                  <option value="save" selected>Simpan Draf</option>
+                  <option value="publish">Terbitkan</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Judul Tab Server</span>
+              <input
+                type="text"
+                id="serverTitle"
+                name="serverTitle"
+                placeholder="Opsional, misalnya Server 1"
+              />
+            </label>
+
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Download Ke</span>
+                <input
+                  type="number"
+                  id="downloadNumber"
+                  name="downloadNumber"
+                  value="1"
+                  min="1"
+                  max="15"
+                  required
+                />
+              </label>
+
+              <label class="field">
+                <span>Judul Download</span>
+                <input
+                  type="text"
+                  id="downloadTitle"
+                  name="downloadTitle"
+                  placeholder="Opsional, misalnya KrakenFiles"
+                />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>URL Download</span>
+              <input
+                type="url"
+                id="downloadUrl"
+                name="downloadUrl"
+                value="https://krakenfiles.com/view/aVRl627NTQ/file.html"
+                placeholder="https://..."
+              />
+            </label>
+
+            <label class="field">
+              <span>Kode Embed</span>
+              <textarea id="embedCode" name="embedCode" rows="8" required>
+<iframe height="360" width="640" frameBorder="0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" src="https://krakenfiles.com/embed-video/aVRl627NTQ"></iframe></textarea
+              >
+            </label>
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="dryRun" name="dryRun" />
+            <span>Dry run dulu, jangan simpan</span>
+          </label>
+
+          <div class="action-row">
+            <button type="submit" id="submitButton">Jalankan</button>
+            <button type="button" id="fillExampleButton" class="ghost-button">
+              Isi Contoh
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Hasil</h2>
+          <span id="statusPill" class="status-pill idle">Menunggu</span>
+        </div>
+
+        <div class="result-meta">
+          <div>
+            <span class="meta-label">Endpoint</span>
+            <code>/api/wordpress/episode</code>
+          </div>
+          <div>
+            <span class="meta-label">Mode</span>
+            <span id="modeLabel">Belum jalan</span>
+          </div>
+        </div>
+
+        <pre id="resultOutput" class="result-output">Belum ada proses.</pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
