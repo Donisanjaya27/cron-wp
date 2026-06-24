@@ -23,8 +23,15 @@ PORT=3000
 WORDPRESS_LOGIN_URL=https://example.com/wp-login.php
 WORDPRESS_TARGET_URL=https://example.com/wp-admin/post-new.php?post_type=episode
 WORDPRESS_TV_TARGET_URL=https://example.com/wp-admin/post-new.php?post_type=tv
+WORDPRESS_TV_SITEMAP_URL=https://drakorid.fun/tv-sitemap.xml
+WORDPRESS_EPISODE_SITEMAP_URL=https://drakorid.fun/episode-sitemap.xml
+WORDPRESS_INDEX_DB_PATH=./data/wordpress-index.sqlite
 WORDPRESS_USERNAME=your-username
 WORDPRESS_PASSWORD=your-password
+TMDB_API_BASE_URL=https://api.themoviedb.org/3
+TMDB_API_KEY=your-tmdb-api-key
+TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500
+TMDB_LANGUAGE=en-US
 ```
 
 ## Endpoint
@@ -81,8 +88,9 @@ Field optional:
 - `serverTitle`: isi `Judul tab` untuk server tertentu
 - `serverNumber`: default `1`
 - `dryRun`: kalau `true`, flow berhenti setelah isi embed tanpa simpan
-- `touchLinkedTvShowAfterSave`: default `true`, setelah episode disimpan sistem akan cari `TV Show` terkait dan update tanggal modifikasinya
+- `touchLinkedTvShowAfterSave`: default `false`, kalau diaktifkan sistem akan coba cari `TV Show` terkait setelah episode disimpan
 - `submitAction`: `save` atau `publish`, default `save`
+- `TMDB_API_KEY`: opsional, dipakai untuk fallback poster kalau field `Url Poster (TMDB)` kosong setelah klik `Ambil Informasi`
 
 `POST /api/wordpress/tv`
 
@@ -103,8 +111,39 @@ Flow TV:
 - isi `TMDB ID`
 - klik `Ambil Informasi`
 - tunggu judul WordPress dan judul TMDB terisi
+- kalau `Url Poster (TMDB)` kosong, backend akan coba ambil poster dari `TMDB` bila `TMDB_API_KEY` tersedia
 - isi `Frasa kunci utama` dari judul
 - `Simpan Draf` atau `Terbitkan`
+
+`POST /api/wordpress/v2/process-file`
+
+Endpoint ini untuk workflow v2:
+
+- parse filename Kraken seperti `tv-239901-drakorid-720p-the-legend-of-rosy-clouds-2026-ep11.mp4`
+- sync index lokal SQLite dari sitemap `tv` dan `episode`
+- cek apakah `TV Show` sudah ada
+- create `TV Show` bila belum ada
+- cek apakah `episode` sudah ada
+- create `episode` bila belum ada
+
+Contoh payload:
+
+```json
+{
+  "downloadUrl": "https://krakenfiles.com/view/aVRl627NTQ/file.html",
+  "submitAction": "save",
+  "forceSync": false,
+  "checkOnly": false
+}
+```
+
+Catatan payload v2:
+
+- `fileName` sekarang opsional jika `downloadUrl` atau `embedUrl` Kraken valid, karena backend akan ambil nama file dari halaman publik Kraken
+- `downloadUrl`, `embedUrl`, `krakenUrl`, atau `embedCode` dibutuhkan jika episode memang perlu dibuat
+- `submitAction` jadi default untuk TV dan episode, tapi bisa dioverride pakai `tvSubmitAction` dan `episodeSubmitAction`
+- `checkOnly: true` hanya cek index tanpa membuat post
+- database index lokal disimpan di `WORDPRESS_INDEX_DB_PATH`
 
 Contoh payload:
 

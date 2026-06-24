@@ -18,6 +18,7 @@ const DEFAULT_EPISODE_SELECTORS = {
   seriesTitle: "#opsi-serie",
   fetchedTitle: "#opsi-title",
   fetchedTmdbId: "#opsi-tmdbid",
+  posterUrl: "#opsi-imageposter",
   seoKeyphraseInput: "#focus-keyword-input-metabox",
   seoKeyphraseHidden: "#yoast_wpseo_focuskw",
   playerTitlePrefix: "#opsi-title-player",
@@ -35,6 +36,7 @@ const DEFAULT_TV_SELECTORS = {
   postStatus: "#post_status",
   fetchedTitle: "#opsi-title",
   fetchedTmdbId: "#opsi-tmdbid",
+  posterUrl: "#opsi-imageposter",
   seoKeyphraseInput: "#focus-keyword-input-metabox",
   seoKeyphraseHidden: "#yoast_wpseo_focuskw",
   saveDraft: "#save-post",
@@ -128,6 +130,107 @@ function assertTvPayload(payload) {
   if (!payload.tmdbId) {
     throw new Error("`tmdbId` wajib diisi.");
   }
+}
+
+async function getFieldValue(page, selector) {
+  const locator = page.locator(selector);
+  await locator.waitFor({ state: "attached", timeout: DEFAULT_TIMEOUT });
+
+  return locator.evaluate((element) => String(element.value || "").trim());
+}
+
+function getTmdbApiKey(payload) {
+  return String(payload.tmdbApiKey || process.env.TMDB_API_KEY || "").trim();
+}
+
+function buildTmdbImageUrl(pathname) {
+  if (!pathname) {
+    return "";
+  }
+
+  return `https://image.tmdb.org/t/p/original${pathname}`;
+}
+
+async function fetchTmdbJson(endpoint, apiKey) {
+  const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("language", "id-ID");
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `TMDB request gagal: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return response.json();
+}
+
+async function resolveEpisodePosterUrl(payload) {
+  const apiKey = getTmdbApiKey(payload);
+  if (!apiKey) {
+    return "";
+  }
+
+  const [episodeData, tvData] = await Promise.all([
+    fetchTmdbJson(
+      `/tv/${payload.tmdbId}/season/${payload.seasonNumber}/episode/${payload.episodeNumber}`,
+      apiKey,
+    ).catch(() => null),
+    fetchTmdbJson(`/tv/${payload.tmdbId}`, apiKey).catch(() => null),
+  ]);
+
+  return (
+    buildTmdbImageUrl(episodeData?.still_path) ||
+    buildTmdbImageUrl(tvData?.poster_path) ||
+    buildTmdbImageUrl(tvData?.backdrop_path) ||
+    ""
+  );
+}
+
+async function resolveTvPosterUrl(payload) {
+  const apiKey = getTmdbApiKey(payload);
+  if (!apiKey) {
+    return "";
+  }
+
+  const tvData = await fetchTmdbJson(`/tv/${payload.tmdbId}`, apiKey).catch(
+    () => null,
+  );
+
+  return (
+    buildTmdbImageUrl(tvData?.poster_path) ||
+    buildTmdbImageUrl(tvData?.backdrop_path) ||
+    ""
+  );
+}
+
+async function fillPosterIfEmpty(page, selector, posterUrlResolver, payload) {
+  const currentPosterUrl = await getFieldValue(page, selector);
+  if (currentPosterUrl) {
+    return {
+      filled: false,
+      reason: "Poster sudah terisi dari WordPress/TMDB.",
+      posterUrl: currentPosterUrl,
+    };
+  }
+
+  const resolvedPosterUrl = await posterUrlResolver(payload);
+  if (!resolvedPosterUrl) {
+    return {
+      filled: false,
+      reason: "Poster TMDB tidak ditemukan atau TMDB_API_KEY belum diisi.",
+      posterUrl: "",
+    };
+  }
+
+  await setFieldValue(page, selector, resolvedPosterUrl);
+
+  return {
+    filled: true,
+    reason: "Poster diisi dari TMDB fallback.",
+    posterUrl: resolvedPosterUrl,
+  };
 }
 
 async function waitForEpisodeTitleLoaded(page, tmdbId, timeout) {
@@ -673,6 +776,18 @@ async function runEpisodeAutomation(payload) {
         `Informasi episode berhasil dimuat. Judul WordPress: ${resolvedTitles.wpTitle}.`,
       );
 
+      const posterFillResult = await fillPosterIfEmpty(
+        page,
+        DEFAULT_EPISODE_SELECTORS.posterUrl,
+        resolveEpisodePosterUrl,
+        normalizedPayload,
+      );
+      executionLog.push(
+        posterFillResult.filled
+          ? "Poster episode kosong, diisi dari TMDB fallback."
+          : `Poster episode tidak diubah: ${posterFillResult.reason}`,
+      );
+
       await setSeoKeyphrase(page, resolvedTitles.wpTitle);
       executionLog.push("Isi Frasa kunci utama dari judul WordPress.");
 
@@ -700,6 +815,7 @@ async function runEpisodeAutomation(payload) {
         return {
           dryRun: true,
           downloadNumber,
+          posterFillResult,
           resolvedTitles,
           serverNumber,
         };
@@ -742,6 +858,7 @@ async function runEpisodeAutomation(payload) {
       return {
         downloadNumber,
         linkedTvUpdate,
+        posterFillResult,
         resolvedTitles,
         submitAction,
         serverNumber,
@@ -794,6 +911,18 @@ async function runTvAutomation(payload) {
         `Informasi TV berhasil dimuat. Judul WordPress: ${resolvedTitles.wpTitle}.`,
       );
 
+      const posterFillResult = await fillPosterIfEmpty(
+        page,
+        DEFAULT_TV_SELECTORS.posterUrl,
+        resolveTvPosterUrl,
+        normalizedPayload,
+      );
+      executionLog.push(
+        posterFillResult.filled
+          ? "Poster TV kosong, diisi dari TMDB fallback."
+          : `Poster TV tidak diubah: ${posterFillResult.reason}`,
+      );
+
       await setSeoKeyphraseWithSelectors(
         page,
         resolvedTitles.wpTitle,
@@ -806,6 +935,7 @@ async function runTvAutomation(payload) {
 
         return {
           dryRun: true,
+          posterFillResult,
           resolvedTitles,
         };
       }
@@ -821,6 +951,7 @@ async function runTvAutomation(payload) {
       executionLog.push("Notifikasi sukses ditemukan.");
 
       return {
+        posterFillResult,
         resolvedTitles,
         submitAction,
       };
