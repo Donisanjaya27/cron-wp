@@ -358,10 +358,13 @@ async function processProviderUpload(
   });
 
   const checkOnly = Boolean(payload.checkOnly);
+  const createTvIfMissing = Boolean(payload.createTvIfMissing);
   processLog.push(
     tvMatch
       ? `TV sudah ada: ${tvMatch.slug}.`
-      : "TV belum ada di index, akan dibuat bila checkOnly=false.",
+      : createTvIfMissing
+        ? "TV belum ada di index, akan dibuat bila checkOnly=false."
+        : "TV belum ada di index, tetapi auto-create TV dimatikan.",
   );
   processLog.push(
     episodeMatch
@@ -370,13 +373,15 @@ async function processProviderUpload(
   );
   let tvAction = {
     created: false,
-    skipped: Boolean(tvMatch) || checkOnly,
+    skipped: Boolean(tvMatch) || checkOnly || !createTvIfMissing,
     existing: tvMatch,
     result: null,
     reason: tvMatch
       ? "TV sudah ada di sitemap."
       : checkOnly
         ? "Check only aktif, create TV dilewati."
+        : !createTvIfMissing
+          ? "Auto-create TV dimatikan."
         : "",
   };
   let episodeAction = {
@@ -391,7 +396,7 @@ async function processProviderUpload(
         : "",
   };
 
-  if (!tvMatch && !checkOnly) {
+  if (!tvMatch && !checkOnly && createTvIfMissing) {
     processLog.push("Mulai create TV Show ke WordPress.");
     tvAction.result = await runTvAutomation(
       buildTvPayload({ ...payload, sourceLabel, provider: providerName }, parsedFile),
@@ -465,9 +470,7 @@ async function processProviderUpload(
   }
 
   return {
-    ok:
-      Boolean(tvMatch || tvAction.created || tvAction.skipped) &&
-      Boolean(episodeMatch || episodeAction.created || episodeAction.skipped),
+    ok: Boolean(episodeMatch || episodeAction.created || episodeAction.skipped),
     mode: checkOnly ? "check-only" : "process-upload",
     processLog,
     source,
