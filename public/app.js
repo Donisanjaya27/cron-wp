@@ -1,25 +1,16 @@
 const form = document.getElementById("episode-form");
-const krakenForm = document.getElementById("kraken-form");
 const submitButton = document.getElementById("submitButton");
 const fillExampleButton = document.getElementById("fillExampleButton");
-const krakenSubmitButton = document.getElementById("krakenSubmitButton");
-const krakenExampleButton = document.getElementById("krakenExampleButton");
-const krakenEnqueueButton = document.getElementById("krakenEnqueueButton");
-const krakenProcessPendingButton = document.getElementById(
-  "krakenProcessPendingButton",
-);
-const krakenSyncSitemapButton = document.getElementById(
-  "krakenSyncSitemapButton",
-);
-const krakenListJobsButton = document.getElementById("krakenListJobsButton");
 const resultOutput = document.getElementById("resultOutput");
-const krakenLogOutput = document.getElementById("krakenLogOutput");
 const statusPill = document.getElementById("statusPill");
 const modeLabel = document.getElementById("modeLabel");
-const krakenModeLabel = document.getElementById("krakenModeLabel");
 const postTypeField = document.getElementById("postType");
 const episodeOnlyFields = document.getElementById("episodeOnlyFields");
 const submitActionField = document.getElementById("submitAction");
+const providerTabs = Array.from(document.querySelectorAll(".provider-tab"));
+const providerPanes = Array.from(
+  document.querySelectorAll("[data-provider-pane]"),
+);
 
 const examplePayload = {
   postType: "episode",
@@ -36,10 +27,93 @@ const examplePayload = {
   embedCode:
     '<iframe height="360" width="640" frameBorder="0" allowfullscreen="true" webkitallowfullscreen="true" mozallowfullscreen="true" src="https://krakenfiles.com/embed-video/aVRl627NTQ"></iframe>',
 };
-const krakenExamplePayload = {
-  krakenUrl: "https://krakenfiles.com/view/aVRl627NTQ/file.html",
-  submitAction: "publish",
-  checkOnly: false,
+
+const providerConfigs = {
+  kraken: {
+    label: "Kraken",
+    form: document.getElementById("kraken-form"),
+    modeLabel: document.getElementById("krakenModeLabel"),
+    logOutput: document.getElementById("krakenLogOutput"),
+    submitButton: document.getElementById("krakenSubmitButton"),
+    exampleButton: document.getElementById("krakenExampleButton"),
+    enqueueButton: document.getElementById("krakenEnqueueButton"),
+    processPendingButton: document.getElementById("krakenProcessPendingButton"),
+    syncSitemapButton: document.getElementById("krakenSyncSitemapButton"),
+    listJobsButton: document.getElementById("krakenListJobsButton"),
+    processEndpoint: "/api/wordpress/v2/process-kraken-url",
+    enqueueEndpoint: "/api/wordpress/v2/jobs/enqueue",
+    processPendingEndpoint: "/api/wordpress/v2/jobs/process-pending",
+    listJobsEndpoint: "/api/wordpress/v2/jobs?limit=20",
+    sourceKey: "krakenSource",
+    examplePayload: {
+      url: "https://krakenfiles.com/view/aVRl627NTQ/file.html",
+      submitAction: "publish",
+      checkOnly: false,
+    },
+    readPayload() {
+      const formData = new FormData(this.form);
+      const url = String(formData.get("krakenUrl") || "").trim();
+
+      return {
+        krakenUrl: url,
+        downloadUrl: url,
+        submitAction: String(formData.get("krakenSubmitAction") || "publish"),
+        checkOnly: document.getElementById("krakenCheckOnly").checked,
+      };
+    },
+    fillExample() {
+      this.form.elements.namedItem("krakenUrl").value = this.examplePayload.url;
+      this.form.elements.namedItem("krakenSubmitAction").value =
+        this.examplePayload.submitAction;
+      document.getElementById("krakenCheckOnly").checked =
+        this.examplePayload.checkOnly;
+      this.modeLabel.textContent = "Contoh Kraken dimuat";
+      writeProviderLog("kraken", "Contoh URL Kraken sudah dimasukkan.");
+    },
+  },
+  filemoon: {
+    label: "Filemoon",
+    form: document.getElementById("filemoon-form"),
+    modeLabel: document.getElementById("filemoonModeLabel"),
+    logOutput: document.getElementById("filemoonLogOutput"),
+    submitButton: document.getElementById("filemoonSubmitButton"),
+    exampleButton: document.getElementById("filemoonExampleButton"),
+    enqueueButton: document.getElementById("filemoonEnqueueButton"),
+    processPendingButton: document.getElementById("filemoonProcessPendingButton"),
+    syncSitemapButton: document.getElementById("filemoonSyncSitemapButton"),
+    listJobsButton: document.getElementById("filemoonListJobsButton"),
+    processEndpoint: "/api/wordpress/v2/process-filemoon-url",
+    enqueueEndpoint: "/api/wordpress/v2/filemoon/jobs/enqueue",
+    processPendingEndpoint: "/api/wordpress/v2/filemoon/jobs/process-pending",
+    listJobsEndpoint: "/api/wordpress/v2/filemoon/jobs?limit=20",
+    sourceKey: "filemoonSource",
+    examplePayload: {
+      url: "https://filemoon.org/0JgG7vRZzoYW/file",
+      submitAction: "publish",
+      checkOnly: false,
+    },
+    readPayload() {
+      const formData = new FormData(this.form);
+      const url = String(formData.get("filemoonUrl") || "").trim();
+
+      return {
+        filemoonUrl: url,
+        downloadUrl: url,
+        submitAction: String(formData.get("filemoonSubmitAction") || "publish"),
+        checkOnly: document.getElementById("filemoonCheckOnly").checked,
+      };
+    },
+    fillExample() {
+      this.form.elements.namedItem("filemoonUrl").value =
+        this.examplePayload.url;
+      this.form.elements.namedItem("filemoonSubmitAction").value =
+        this.examplePayload.submitAction;
+      document.getElementById("filemoonCheckOnly").checked =
+        this.examplePayload.checkOnly;
+      this.modeLabel.textContent = "Contoh Filemoon dimuat";
+      writeProviderLog("filemoon", "Contoh URL Filemoon sudah dimasukkan.");
+    },
+  },
 };
 
 function setStatus(type, label) {
@@ -52,9 +126,25 @@ function writeResult(content) {
     typeof content === "string" ? content : JSON.stringify(content, null, 2);
 }
 
-function writeKrakenLog(content) {
-  krakenLogOutput.textContent =
+function writeProviderLog(provider, content) {
+  const config = providerConfigs[provider];
+  config.logOutput.textContent =
     typeof content === "string" ? content : JSON.stringify(content, null, 2);
+}
+
+function setProviderButtonsDisabled(provider, disabled) {
+  const config = providerConfigs[provider];
+
+  [
+    config.submitButton,
+    config.exampleButton,
+    config.enqueueButton,
+    config.processPendingButton,
+    config.syncSitemapButton,
+    config.listJobsButton,
+  ].forEach((button) => {
+    button.disabled = disabled;
+  });
 }
 
 function togglePostTypeFields() {
@@ -136,43 +226,9 @@ function fillExample() {
   writeResult("Contoh payload sudah dimasukkan ke form.");
 }
 
-function readKrakenPayload() {
-  const formData = new FormData(krakenForm);
-
-  return {
-    krakenUrl: String(formData.get("krakenUrl") || "").trim(),
-    downloadUrl: String(formData.get("krakenUrl") || "").trim(),
-    submitAction: String(formData.get("krakenSubmitAction") || "publish"),
-    checkOnly: document.getElementById("krakenCheckOnly").checked,
-  };
-}
-
-function fillKrakenExample() {
-  krakenForm.elements.namedItem("krakenUrl").value =
-    krakenExamplePayload.krakenUrl;
-  krakenForm.elements.namedItem("krakenSubmitAction").value =
-    krakenExamplePayload.submitAction;
-  document.getElementById("krakenCheckOnly").checked =
-    krakenExamplePayload.checkOnly;
-
-  krakenModeLabel.textContent = "Contoh Kraken dimuat";
-  writeKrakenLog("Contoh URL Kraken sudah dimasukkan.");
-}
-
-function setKrakenButtonsDisabled(disabled) {
-  [
-    krakenSubmitButton,
-    krakenExampleButton,
-    krakenEnqueueButton,
-    krakenProcessPendingButton,
-    krakenSyncSitemapButton,
-    krakenListJobsButton,
-  ].forEach((button) => {
-    button.disabled = disabled;
-  });
-}
-
-function formatKrakenLog(result) {
+function formatProviderLog(provider, result) {
+  const config = providerConfigs[provider];
+  const source = result[config.sourceKey] || result.source || null;
   const lines = [];
 
   if (Array.isArray(result.processLog) && result.processLog.length) {
@@ -246,7 +302,8 @@ function formatKrakenLog(result) {
       {
         ok: result.ok,
         mode: result.mode,
-        krakenSource: result.krakenSource,
+        sourceProvider: result.sourceProvider || provider,
+        source,
         parsedFile: result.parsedFile,
         tmdb: result.tmdb,
       },
@@ -256,6 +313,18 @@ function formatKrakenLog(result) {
   );
 
   return lines.join("\n");
+}
+
+function selectProviderTab(provider) {
+  providerTabs.forEach((button) => {
+    const active = button.dataset.provider === provider;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+
+  providerPanes.forEach((pane) => {
+    pane.hidden = pane.dataset.providerPane !== provider;
+  });
 }
 
 async function submitEpisode(event) {
@@ -309,26 +378,26 @@ async function submitEpisode(event) {
   }
 }
 
-async function submitKraken(event) {
+async function submitProvider(event, provider) {
   event.preventDefault();
 
-  const payload = readKrakenPayload();
-  const endpoint = "/api/wordpress/v2/process-kraken-url";
+  const config = providerConfigs[provider];
+  const payload = config.readPayload();
 
-  setKrakenButtonsDisabled(true);
-  krakenModeLabel.textContent = payload.checkOnly
+  setProviderButtonsDisabled(provider, true);
+  config.modeLabel.textContent = payload.checkOnly
     ? "Check Only"
     : payload.submitAction === "publish"
       ? "Publish"
       : "Save";
-  writeKrakenLog({
-    message: "Mengirim request Kraken ke backend...",
-    endpoint,
+  writeProviderLog(provider, {
+    message: `Mengirim request ${config.label} ke backend...`,
+    endpoint: config.processEndpoint,
     payload,
   });
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(config.processEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -339,29 +408,31 @@ async function submitKraken(event) {
     const result = await response.json();
 
     if (!response.ok || result.ok === false) {
-      krakenModeLabel.textContent = "Gagal";
-      writeKrakenLog(result);
+      config.modeLabel.textContent = "Gagal";
+      writeProviderLog(provider, result);
       return;
     }
 
-    krakenModeLabel.textContent = "Selesai";
-    writeKrakenLog(formatKrakenLog(result));
+    config.modeLabel.textContent = "Selesai";
+    writeProviderLog(provider, formatProviderLog(provider, result));
   } catch (error) {
-    krakenModeLabel.textContent = "Error";
-    writeKrakenLog({
+    config.modeLabel.textContent = "Error";
+    writeProviderLog(provider, {
       ok: false,
       message: error.message,
     });
   } finally {
-    setKrakenButtonsDisabled(false);
+    setProviderButtonsDisabled(provider, false);
   }
 }
 
-async function postKrakenAction(endpoint, payload, statusLabel) {
-  setKrakenButtonsDisabled(true);
-  krakenModeLabel.textContent = statusLabel;
-  writeKrakenLog({
-    message: "Mengirim request Kraken ke backend...",
+async function postProviderAction(provider, endpoint, payload, statusLabel) {
+  const config = providerConfigs[provider];
+
+  setProviderButtonsDisabled(provider, true);
+  config.modeLabel.textContent = statusLabel;
+  writeProviderLog(provider, {
+    message: `Mengirim request ${config.label} ke backend...`,
     endpoint,
     payload,
   });
@@ -377,80 +448,106 @@ async function postKrakenAction(endpoint, payload, statusLabel) {
     const result = await response.json();
 
     if (!response.ok || result.ok === false) {
-      krakenModeLabel.textContent = "Gagal";
-      writeKrakenLog(result);
+      config.modeLabel.textContent = "Gagal";
+      writeProviderLog(provider, result);
       return;
     }
 
-    krakenModeLabel.textContent = "Selesai";
-    writeKrakenLog(result);
+    config.modeLabel.textContent = "Selesai";
+    writeProviderLog(provider, result);
   } catch (error) {
-    krakenModeLabel.textContent = "Error";
-    writeKrakenLog({
+    config.modeLabel.textContent = "Error";
+    writeProviderLog(provider, {
       ok: false,
       message: error.message,
     });
   } finally {
-    setKrakenButtonsDisabled(false);
+    setProviderButtonsDisabled(provider, false);
   }
 }
 
-async function enqueueKrakenJob() {
-  const payload = readKrakenPayload();
-
-  await postKrakenAction("/api/wordpress/v2/jobs/enqueue", payload, "Enqueue");
+async function enqueueProviderJob(provider) {
+  const config = providerConfigs[provider];
+  await postProviderAction(
+    provider,
+    config.enqueueEndpoint,
+    config.readPayload(),
+    "Enqueue",
+  );
 }
 
-async function processPendingKrakenJobs() {
-  await postKrakenAction(
-    "/api/wordpress/v2/jobs/process-pending",
+async function processPendingProviderJobs(provider) {
+  const config = providerConfigs[provider];
+  await postProviderAction(
+    provider,
+    config.processPendingEndpoint,
     { limit: 3 },
     "Process Pending",
   );
 }
 
-async function syncSitemapNow() {
-  await postKrakenAction("/api/wordpress/v2/sync-sitemap", {}, "Sync Sitemap");
+async function syncSitemapNow(provider) {
+  await postProviderAction(
+    provider,
+    "/api/wordpress/v2/sync-sitemap",
+    {},
+    "Sync Sitemap",
+  );
 }
 
-async function listKrakenJobs() {
-  setKrakenButtonsDisabled(true);
-  krakenModeLabel.textContent = "Lihat Queue";
-  writeKrakenLog("Mengambil daftar queue Kraken...");
+async function listProviderJobs(provider) {
+  const config = providerConfigs[provider];
+
+  setProviderButtonsDisabled(provider, true);
+  config.modeLabel.textContent = "Lihat Queue";
+  writeProviderLog(provider, `Mengambil daftar queue ${config.label}...`);
 
   try {
-    const response = await fetch("/api/wordpress/v2/jobs?limit=20");
+    const response = await fetch(config.listJobsEndpoint);
     const result = await response.json();
 
     if (!response.ok || result.ok === false) {
-      krakenModeLabel.textContent = "Gagal";
-      writeKrakenLog(result);
+      config.modeLabel.textContent = "Gagal";
+      writeProviderLog(provider, result);
       return;
     }
 
-    krakenModeLabel.textContent = "Queue";
-    writeKrakenLog(result);
+    config.modeLabel.textContent = "Queue";
+    writeProviderLog(provider, result);
   } catch (error) {
-    krakenModeLabel.textContent = "Error";
-    writeKrakenLog({
+    config.modeLabel.textContent = "Error";
+    writeProviderLog(provider, {
       ok: false,
       message: error.message,
     });
   } finally {
-    setKrakenButtonsDisabled(false);
+    setProviderButtonsDisabled(provider, false);
   }
 }
 
 fillExampleButton.addEventListener("click", fillExample);
-krakenExampleButton.addEventListener("click", fillKrakenExample);
-krakenEnqueueButton.addEventListener("click", enqueueKrakenJob);
-krakenProcessPendingButton.addEventListener("click", processPendingKrakenJobs);
-krakenSyncSitemapButton.addEventListener("click", syncSitemapNow);
-krakenListJobsButton.addEventListener("click", listKrakenJobs);
 form.addEventListener("submit", submitEpisode);
-krakenForm.addEventListener("submit", submitKraken);
 postTypeField.addEventListener("change", togglePostTypeFields);
 
+providerTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectProviderTab(button.dataset.provider);
+  });
+});
+
+Object.entries(providerConfigs).forEach(([provider, config]) => {
+  config.exampleButton.addEventListener("click", () => config.fillExample());
+  config.enqueueButton.addEventListener("click", () => enqueueProviderJob(provider));
+  config.processPendingButton.addEventListener("click", () =>
+    processPendingProviderJobs(provider),
+  );
+  config.syncSitemapButton.addEventListener("click", () => syncSitemapNow(provider));
+  config.listJobsButton.addEventListener("click", () => listProviderJobs(provider));
+  config.form.addEventListener("submit", (event) => submitProvider(event, provider));
+});
+
 fillExample();
-fillKrakenExample();
+providerConfigs.kraken.fillExample();
+providerConfigs.filemoon.fillExample();
 togglePostTypeFields();
+selectProviderTab("kraken");

@@ -32,6 +32,8 @@ TMDB_API_BASE_URL=https://api.themoviedb.org/3
 TMDB_API_KEY=your-tmdb-api-key
 TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500
 TMDB_LANGUAGE=en-US
+FILEMOON_API_BASE_URL=https://filemoon.org/api/v1
+FILEMOON_API_TOKEN=your-filemoon-api-token
 ```
 
 ## Endpoint
@@ -120,6 +122,7 @@ Flow TV:
 Endpoint ini untuk workflow v2:
 
 - parse filename Kraken seperti `tv-239901-drakorid-720p-the-legend-of-rosy-clouds-2026-ep11.mp4`
+- parse filename Filemoon dengan format judul yang sama
 - sync index lokal SQLite dari sitemap `tv` dan `episode`
 - cek apakah `TV Show` sudah ada
 - create `TV Show` bila belum ada
@@ -144,6 +147,39 @@ Catatan payload v2:
 - `submitAction` jadi default untuk TV dan episode, tapi bisa dioverride pakai `tvSubmitAction` dan `episodeSubmitAction`
 - `checkOnly: true` hanya cek index tanpa membuat post
 - database index lokal disimpan di `WORDPRESS_INDEX_DB_PATH`
+
+`POST /api/wordpress/v2/process-filemoon-url`
+
+Endpoint ini untuk workflow v2 berbasis Filemoon. Backend akan:
+
+- extract `file ID` dari URL Filemoon
+- memanggil API Filemoon memakai `FILEMOON_API_TOKEN`
+- mengambil `filename`, `page`, `watch`, dan `embed URL`
+- parse filename dengan format yang sama seperti Kraken
+- lalu menjalankan flow cek/create TV dan episode yang sama
+
+Contoh payload:
+
+```json
+{
+  "filemoonUrl": "https://filemoon.org/0JgG7vRZzoYW/file",
+  "submitAction": "publish",
+  "forceSync": false,
+  "checkOnly": false
+}
+```
+
+Endpoint queue Filemoon:
+
+- `POST /api/wordpress/v2/filemoon/jobs/enqueue`
+- `GET /api/wordpress/v2/filemoon/jobs?limit=20`
+- `POST /api/wordpress/v2/filemoon/jobs/process-pending`
+
+Catatan Filemoon:
+
+- `FILEMOON_API_TOKEN` wajib di server karena backend memakai API resmi Filemoon
+- URL Filemoon yang didukung: `/file`, `/watch`, atau `/embed`
+- format filename tetap mengikuti pola lama, misalnya `tv-239901-drakorid-720p-judul-2026-ep11.mp4`
 
 Contoh payload:
 

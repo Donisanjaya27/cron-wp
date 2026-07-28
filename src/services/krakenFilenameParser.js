@@ -45,6 +45,43 @@ function buildKrakenEmbedUrl(fileId) {
   return `https://krakenfiles.com/embed-video/${fileId}`;
 }
 
+function extractFilemoonFileIdFromUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const match = value.match(
+    /filemoon\.org\/(?:[a-z]{2}\/)?([A-Za-z0-9]+)\/(?:file|watch|embed)/i,
+  );
+
+  return match?.[1] || "";
+}
+
+function buildFilemoonPageUrl(fileId) {
+  if (!fileId) {
+    return "";
+  }
+
+  return `https://filemoon.org/${fileId}/file`;
+}
+
+function buildFilemoonWatchUrl(fileId) {
+  if (!fileId) {
+    return "";
+  }
+
+  return `https://filemoon.org/${fileId}/watch`;
+}
+
+function buildFilemoonEmbedUrl(fileId) {
+  if (!fileId) {
+    return "";
+  }
+
+  return `https://filemoon.org/${fileId}/embed`;
+}
+
 function buildEmbedCode(embedUrl) {
   if (!embedUrl) {
     return "";
@@ -70,6 +107,32 @@ function resolveKrakenMediaLinks({
   return {
     fileId: resolvedFileId,
     downloadUrl: resolvedDownloadUrl,
+    embedUrl: resolvedEmbedUrl,
+    embedCode: embedCode || buildEmbedCode(resolvedEmbedUrl),
+  };
+}
+
+function resolveFilemoonMediaLinks({
+  downloadUrl,
+  watchUrl,
+  embedUrl,
+  embedCode,
+  fileId,
+} = {}) {
+  const resolvedFileId =
+    fileId ||
+    extractFilemoonFileIdFromUrl(downloadUrl) ||
+    extractFilemoonFileIdFromUrl(watchUrl) ||
+    extractFilemoonFileIdFromUrl(embedUrl);
+  const resolvedDownloadUrl =
+    downloadUrl || buildFilemoonPageUrl(resolvedFileId);
+  const resolvedWatchUrl = watchUrl || buildFilemoonWatchUrl(resolvedFileId);
+  const resolvedEmbedUrl = embedUrl || buildFilemoonEmbedUrl(resolvedFileId);
+
+  return {
+    fileId: resolvedFileId,
+    downloadUrl: resolvedDownloadUrl,
+    watchUrl: resolvedWatchUrl,
     embedUrl: resolvedEmbedUrl,
     embedCode: embedCode || buildEmbedCode(resolvedEmbedUrl),
   };
@@ -179,9 +242,14 @@ function parseKrakenFilename(fileName) {
 
 module.exports = {
   buildEmbedCode,
+  buildFilemoonEmbedUrl,
+  buildFilemoonPageUrl,
+  buildFilemoonWatchUrl,
   buildKrakenDownloadUrl,
   buildKrakenEmbedUrl,
+  extractFilemoonFileIdFromUrl,
   extractKrakenFileIdFromUrl,
   parseKrakenFilename,
+  resolveFilemoonMediaLinks,
   resolveKrakenMediaLinks,
 };

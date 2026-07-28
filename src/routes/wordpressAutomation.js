@@ -4,13 +4,21 @@ const {
   runTvAutomation,
   runWordpressAutomation,
 } = require("../services/wordpressAutomationService");
-const { processKrakenUpload } = require("../services/wordpressV2Service");
+const {
+  processFilemoonUpload,
+  processKrakenUpload,
+} = require("../services/wordpressV2Service");
 const {
   enqueueKrakenJob,
   listKrakenJobs,
   processPendingKrakenJobs,
   syncSitemapNow,
 } = require("../services/krakenJobService");
+const {
+  enqueueFilemoonJob,
+  listFilemoonJobs,
+  processPendingFilemoonJobs,
+} = require("../services/filemoonJobService");
 
 const wordpressAutomationRouter = express.Router();
 
@@ -72,6 +80,20 @@ wordpressAutomationRouter.post(
   },
 );
 
+wordpressAutomationRouter.post(
+  "/v2/process-filemoon-url",
+  async (req, res, next) => {
+    try {
+      const result = await processFilemoonUpload(req.body);
+      const statusCode = result.ok ? 200 : 400;
+
+      res.status(statusCode).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 wordpressAutomationRouter.post("/v2/jobs/enqueue", async (req, res, next) => {
   try {
     const job = await enqueueKrakenJob(req.body);
@@ -100,6 +122,54 @@ wordpressAutomationRouter.get("/v2/jobs", async (req, res, next) => {
     next(error);
   }
 });
+
+wordpressAutomationRouter.post(
+  "/v2/filemoon/jobs/enqueue",
+  async (req, res, next) => {
+    try {
+      const job = await enqueueFilemoonJob(req.body);
+
+      res.status(200).json({
+        ok: true,
+        message: "Job Filemoon masuk ke queue.",
+        job,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+wordpressAutomationRouter.get("/v2/filemoon/jobs", async (req, res, next) => {
+  try {
+    const jobs = await listFilemoonJobs({
+      limit: Number(req.query.limit || 20),
+    });
+
+    res.status(200).json({
+      ok: true,
+      jobs,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+wordpressAutomationRouter.post(
+  "/v2/filemoon/jobs/process-pending",
+  async (req, res, next) => {
+    try {
+      const result = await processPendingFilemoonJobs({
+        limit: Number(req.body.limit || 3),
+        forceSync: Boolean(req.body.forceSync),
+      });
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 wordpressAutomationRouter.post(
   "/v2/jobs/process-pending",

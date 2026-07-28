@@ -4,6 +4,7 @@ const {
 } = require("./wordpressAutomationService");
 const { parseKrakenFilename } = require("./krakenFilenameParser");
 const { resolveKrakenSource } = require("./krakenSourceService");
+const { resolveFilemoonSource } = require("./filemoonSourceService");
 const {
   findEpisodeMatch,
   findTvMatch,
@@ -152,6 +153,8 @@ function buildExpectedEpisodeVariants({
 }
 
 function buildEpisodePayload(payload, parsedFile, mediaLinks) {
+  const sourceLabel = payload.sourceLabel || "server";
+
   return {
     ...payload,
     tmdbId: parsedFile.tmdbId,
@@ -159,8 +162,8 @@ function buildEpisodePayload(payload, parsedFile, mediaLinks) {
     episodeNumber: parsedFile.episodeNumber,
     embedCode: mediaLinks.embedCode,
     downloadUrl: mediaLinks.downloadUrl,
-    serverTitle: payload.serverTitle || parsedFile.quality || "krakenfiles",
-    downloadTitle: payload.downloadTitle || parsedFile.quality || "krakenfiles",
+    serverTitle: payload.serverTitle || parsedFile.quality || sourceLabel,
+    downloadTitle: payload.downloadTitle || parsedFile.quality || sourceLabel,
     submitAction:
       payload.episodeSubmitAction || payload.submitAction || "publish",
     touchLinkedTvShowAfterSave:
@@ -181,17 +184,18 @@ function buildTvPayload(payload, parsedFile) {
 
 function buildMovieUnsupportedResult({
   checkOnly,
-  krakenSource,
+  source,
   parsedFile,
   mediaLinks,
   syncResult,
+  providerTitle,
 }) {
   const processLog = [
-    "Mulai proses upload Kraken.",
-    krakenSource.fileId
-      ? `Kraken file terdeteksi: ${krakenSource.fileId}.`
-      : "Kraken file ID tidak ditemukan dari URL.",
-    `Nama file Kraken: ${krakenSource.fileName}.`,
+    `Mulai proses ${providerTitle}.`,
+    source.fileId
+      ? `${providerTitle} file terdeteksi: ${source.fileId}.`
+      : `${providerTitle} file ID tidak ditemukan dari input.`,
+    `Nama file ${providerTitle}: ${source.fileName}.`,
     `Hasil parse: mediaType=${parsedFile.mediaType}, tmdbId=${parsedFile.tmdbId}.`,
     syncResult.skipped
       ? `Index sitemap dipakai dari cache. TV=${syncResult.tvCount}, Episode=${syncResult.episodeCount}.`
@@ -206,7 +210,7 @@ function buildMovieUnsupportedResult({
     ok: false,
     mode: checkOnly ? "check-only" : "process-upload",
     processLog,
-    krakenSource,
+    source,
     parsedFile,
     mediaLinks,
     syncResult,
@@ -215,32 +219,35 @@ function buildMovieUnsupportedResult({
   };
 }
 
-async function processKrakenUpload(payload) {
+async function processProviderUpload(
+  payload,
+  { providerName, providerTitle, sourceLabel, resolveSource },
+) {
   if (!payload || typeof payload !== "object") {
     throw new Error("Payload harus berupa object.");
   }
 
   const processLog = [];
-  processLog.push("Mulai proses upload Kraken.");
+  processLog.push(`Mulai proses ${providerTitle}.`);
 
-  const krakenSource = await resolveKrakenSource(payload);
+  const source = await resolveSource(payload);
   processLog.push(
-    krakenSource.fileId
-      ? `Kraken file terdeteksi: ${krakenSource.fileId}.`
-      : "Kraken file ID tidak ditemukan dari URL.",
+    source.fileId
+      ? `${providerTitle} file terdeteksi: ${source.fileId}.`
+      : `${providerTitle} file ID tidak ditemukan dari input.`,
   );
-  if (!krakenSource.fileName) {
+  if (!source.fileName) {
     throw new Error(
-      "Nama file Kraken tidak bisa ditentukan. Isi `fileName` atau kirim `downloadUrl`/`embedUrl` Kraken yang valid.",
+      `Nama file ${providerTitle} tidak bisa ditentukan. Isi \`fileName\` atau kirim URL/file ID ${providerTitle} yang valid.`,
     );
   }
-  processLog.push(`Nama file Kraken: ${krakenSource.fileName}.`);
+  processLog.push(`Nama file ${providerTitle}: ${source.fileName}.`);
 
-  const parsedFile = parseKrakenFilename(krakenSource.fileName);
+  const parsedFile = parseKrakenFilename(source.fileName);
   processLog.push(
     `Hasil parse: tmdbId=${parsedFile.tmdbId}, season=${parsedFile.seasonNumber}, episode=${parsedFile.episodeNumber}.`,
   );
-  const mediaLinks = krakenSource.mediaLinks;
+  const mediaLinks = source.mediaLinks;
   const syncResult = await syncWordpressIndex({
     force: Boolean(payload.forceSync),
     maxAgeMinutes: payload.maxIndexAgeMinutes,
@@ -254,10 +261,11 @@ async function processKrakenUpload(payload) {
   if (parsedFile.mediaType === "movie") {
     return buildMovieUnsupportedResult({
       checkOnly: Boolean(payload.checkOnly),
-      krakenSource,
+      source,
       parsedFile,
       mediaLinks,
       syncResult,
+      providerTitle,
     });
   }
 
@@ -319,7 +327,7 @@ async function processKrakenUpload(payload) {
   if (!tvMatch && !checkOnly) {
     processLog.push("Mulai create TV Show ke WordPress.");
     tvAction.result = await runTvAutomation(
-      buildTvPayload(payload, parsedFile),
+      buildTvPayload({ ...payload, sourceLabel, provider: providerName }, parsedFile),
     );
     tvAction.created = Boolean(tvAction.result?.ok);
     tvAction.skipped = false;
@@ -339,7 +347,11 @@ async function processKrakenUpload(payload) {
     } else {
       processLog.push("Mulai create episode ke WordPress.");
       episodeAction.result = await runEpisodeAutomation(
-        buildEpisodePayload(payload, parsedFile, mediaLinks),
+        buildEpisodePayload(
+          { ...payload, sourceLabel, provider: providerName },
+          parsedFile,
+          mediaLinks,
+        ),
       );
       episodeAction.created = Boolean(episodeAction.result?.ok);
       episodeAction.skipped = false;
@@ -370,10 +382,11 @@ async function processKrakenUpload(payload) {
       Boolean(episodeMatch || episodeAction.created || episodeAction.skipped),
     mode: checkOnly ? "check-only" : "process-upload",
     processLog,
-    krakenSource,
+    source,
     parsedFile,
     mediaLinks,
     syncResult,
+    sourceProvider: providerName,
     tmdb: {
       id: tvDetails.id,
       name: tvDetails.name,
@@ -385,6 +398,35 @@ async function processKrakenUpload(payload) {
   };
 }
 
+async function processKrakenUpload(payload) {
+  const result = await processProviderUpload(payload, {
+    providerName: "kraken",
+    providerTitle: "Kraken",
+    sourceLabel: "krakenfiles",
+    resolveSource: resolveKrakenSource,
+  });
+
+  return {
+    ...result,
+    krakenSource: result.source,
+  };
+}
+
+async function processFilemoonUpload(payload) {
+  const result = await processProviderUpload(payload, {
+    providerName: "filemoon",
+    providerTitle: "Filemoon",
+    sourceLabel: "filemoon",
+    resolveSource: resolveFilemoonSource,
+  });
+
+  return {
+    ...result,
+    filemoonSource: result.source,
+  };
+}
+
 module.exports = {
+  processFilemoonUpload,
   processKrakenUpload,
 };
