@@ -19,6 +19,200 @@
 
       <section class="panel">
         <div class="panel-head">
+          <h2>Auto Source V2</h2>
+          <span class="badge">Kraken + Filemoon</span>
+        </div>
+
+        <div class="provider-tabs" role="tablist" aria-label="Pilih source">
+          <button
+            type="button"
+            class="provider-tab active"
+            data-provider="kraken"
+          >
+            Kraken
+          </button>
+          <button type="button" class="provider-tab" data-provider="filemoon">
+            Filemoon
+          </button>
+        </div>
+
+        <section class="provider-pane" data-provider-pane="kraken">
+          <form id="kraken-form" class="episode-form">
+            <label class="field">
+              <span>URL Kraken</span>
+              <input
+                type="url"
+                id="krakenUrl"
+                name="krakenUrl"
+                value="https://krakenfiles.com/view/aVRl627NTQ/file.html"
+                placeholder="https://krakenfiles.com/view/.../file.html"
+                required
+              />
+            </label>
+
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Aksi Default</span>
+                <select id="krakenSubmitAction" name="krakenSubmitAction">
+                  <option value="save">Simpan Draf</option>
+                  <option value="publish" selected>Terbitkan</option>
+                </select>
+              </label>
+
+              <label class="checkbox-row checkbox-box">
+                <input
+                  type="checkbox"
+                  id="krakenCheckOnly"
+                  name="krakenCheckOnly"
+                />
+                <span>Cek saja, jangan create</span>
+              </label>
+            </div>
+
+            <div class="action-row">
+              <button type="submit" id="krakenSubmitButton">Proses Kraken</button>
+              <button type="button" id="krakenExampleButton" class="ghost-button">
+                Isi Contoh Kraken
+              </button>
+            </div>
+            <div class="action-row">
+              <button type="button" id="krakenEnqueueButton" class="ghost-button">
+                Masuk Queue
+              </button>
+              <button
+                type="button"
+                id="krakenProcessPendingButton"
+                class="ghost-button"
+              >
+                Proses Pending
+              </button>
+            </div>
+
+            <div class="action-row">
+              <button
+                type="button"
+                id="krakenSyncSitemapButton"
+                class="ghost-button"
+              >
+                Sync Sitemap
+              </button>
+              <button
+                type="button"
+                id="krakenListJobsButton"
+                class="ghost-button"
+              >
+                Lihat Queue
+              </button>
+            </div>
+          </form>
+
+          <div class="result-meta compact-meta">
+            <div>
+              <span class="meta-label">Endpoint</span>
+              <code>/api/wordpress/v2/process-kraken-url</code>
+            </div>
+            <div>
+              <span class="meta-label">Status</span>
+              <span id="krakenModeLabel">Belum jalan</span>
+            </div>
+          </div>
+
+          <pre id="krakenLogOutput" class="result-output result-output-small">
+Belum ada proses Kraken.
+          </pre>
+        </section>
+
+        <section class="provider-pane" data-provider-pane="filemoon" hidden>
+          <form id="filemoon-form" class="episode-form">
+            <label class="field">
+              <span>URL Filemoon</span>
+              <input
+                type="url"
+                id="filemoonUrl"
+                name="filemoonUrl"
+                value="https://filemoon.org/0JgG7vRZzoYW/file"
+                placeholder="https://filemoon.org/FILE_ID/file"
+                required
+              />
+            </label>
+
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Aksi Default</span>
+                <select id="filemoonSubmitAction" name="filemoonSubmitAction">
+                  <option value="save">Simpan Draf</option>
+                  <option value="publish" selected>Terbitkan</option>
+                </select>
+              </label>
+
+              <label class="checkbox-row checkbox-box">
+                <input
+                  type="checkbox"
+                  id="filemoonCheckOnly"
+                  name="filemoonCheckOnly"
+                />
+                <span>Cek saja, jangan create</span>
+              </label>
+            </div>
+
+            <div class="action-row">
+              <button type="submit" id="filemoonSubmitButton">
+                Proses Filemoon
+              </button>
+              <button type="button" id="filemoonExampleButton" class="ghost-button">
+                Isi Contoh Filemoon
+              </button>
+            </div>
+            <div class="action-row">
+              <button type="button" id="filemoonEnqueueButton" class="ghost-button">
+                Masuk Queue
+              </button>
+              <button
+                type="button"
+                id="filemoonProcessPendingButton"
+                class="ghost-button"
+              >
+                Proses Pending
+              </button>
+            </div>
+
+            <div class="action-row">
+              <button
+                type="button"
+                id="filemoonSyncSitemapButton"
+                class="ghost-button"
+              >
+                Sync Sitemap
+              </button>
+              <button
+                type="button"
+                id="filemoonListJobsButton"
+                class="ghost-button"
+              >
+                Lihat Queue
+              </button>
+            </div>
+          </form>
+
+          <div class="result-meta compact-meta">
+            <div>
+              <span class="meta-label">Endpoint</span>
+              <code>/api/wordpress/v2/process-filemoon-url</code>
+            </div>
+            <div>
+              <span class="meta-label">Status</span>
+              <span id="filemoonModeLabel">Belum jalan</span>
+            </div>
+          </div>
+
+          <pre id="filemoonLogOutput" class="result-output result-output-small">
+Belum ada proses Filemoon.
+          </pre>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
           <h2>Form Episode</h2>
           <span class="badge">Mobile First</span>
         </div>

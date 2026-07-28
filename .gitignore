@@ -3,3 +3,7 @@ node_modules/
 artifacts/
 .dbg/
 .DS_Store
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

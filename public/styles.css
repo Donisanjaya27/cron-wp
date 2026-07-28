@@ -93,6 +93,31 @@ body {
   font-size: 1.05rem;
 }
 
+.provider-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.provider-tab {
+  min-height: 44px;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--muted);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.provider-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  border-color: transparent;
+}
+
+.provider-pane[hidden] {
+  display: none;
+}
+
 .badge,
 .status-pill {
   display: inline-flex;
@@ -194,6 +219,14 @@ textarea:focus {
   font-size: 0.92rem;
 }
 
+.checkbox-box {
+  min-height: 100%;
+  padding: 14px 15px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: var(--input);
+}
+
 .checkbox-row input {
   width: 18px;
   height: 18px;
@@ -227,7 +260,9 @@ button:disabled {
   transform: none;
 }
 
-#submitButton {
+#submitButton,
+#krakenSubmitButton,
+#filemoonSubmitButton {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: white;
 }
@@ -243,6 +278,10 @@ button:disabled {
   grid-template-columns: 1fr;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.compact-meta {
+  margin-top: 16px;
 }
 
 .result-meta code {
@@ -264,6 +303,11 @@ button:disabled {
   word-break: break-word;
   min-height: 240px;
   overflow: auto;
+}
+
+.result-output-small {
+  min-height: 200px;
+  max-height: 420px;
 }
 
 @media (min-width: 640px) {
