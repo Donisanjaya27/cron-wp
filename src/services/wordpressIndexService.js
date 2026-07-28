@@ -184,7 +184,9 @@ function mapEpisodeEntries(entries, syncedAt) {
 async function fetchSitemapEntries(url) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Gagal mengambil sitemap: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Gagal mengambil sitemap: ${response.status} ${response.statusText}`,
+    );
   }
 
   const xml = await response.text();
@@ -210,7 +212,9 @@ function getLastSyncInfo(db) {
 
 function readIndexCounts(db) {
   const tv = db.prepare(`SELECT COUNT(*) AS count FROM tv_index`).get();
-  const episode = db.prepare(`SELECT COUNT(*) AS count FROM episode_index`).get();
+  const episode = db
+    .prepare(`SELECT COUNT(*) AS count FROM episode_index`)
+    .get();
 
   return {
     tvCount: tv.count,
@@ -239,7 +243,9 @@ async function syncWordpressIndex({
   }
 
   const [tvEntries, episodeEntries] = await Promise.all([
-    fetchSitemapEntries(process.env.WORDPRESS_TV_SITEMAP_URL || DEFAULT_TV_SITEMAP_URL),
+    fetchSitemapEntries(
+      process.env.WORDPRESS_TV_SITEMAP_URL || DEFAULT_TV_SITEMAP_URL,
+    ),
     fetchSitemapEntries(
       process.env.WORDPRESS_EPISODE_SITEMAP_URL || DEFAULT_EPISODE_SITEMAP_URL,
     ),
@@ -358,7 +364,10 @@ function scoreMatch(candidateValue, variantValues) {
       continue;
     }
 
-    if (candidate.includes(normalizedVariant) || normalizedVariant.includes(candidate)) {
+    if (
+      candidate.includes(normalizedVariant) ||
+      normalizedVariant.includes(candidate)
+    ) {
       score = Math.max(score, 70);
     }
   }
@@ -406,7 +415,10 @@ async function findEpisodeMatch({
   const rankedRows = rows
     .map((row) => {
       const seriesScore = scoreMatch(row.series_key, seriesVariants);
-      const titleScore = scoreMatch(row.normalized_title, expectedTitleVariants);
+      const titleScore = scoreMatch(
+        row.normalized_title,
+        expectedTitleVariants,
+      );
       const slugScore = scoreMatch(row.normalized_slug, expectedSlugVariants);
 
       return {
@@ -420,10 +432,121 @@ async function findEpisodeMatch({
   return rankedRows[0] || null;
 }
 
+async function upsertTvIndexEntry({ url, slug, title, lastmod = "" } = {}) {
+  const db = await openDatabase();
+  const normalizedTitle = normalizeText(title || slug || "");
+  const normalizedSlug = normalizeSlug(slug || title || "");
+  const syncedAt = new Date().toISOString();
+
+  db.prepare(
+    `
+      INSERT INTO tv_index (
+        url,
+        slug,
+        title,
+        normalized_slug,
+        normalized_title,
+        lastmod,
+        synced_at
+      ) VALUES (
+        @url,
+        @slug,
+        @title,
+        @normalized_slug,
+        @normalized_title,
+        @lastmod,
+        @synced_at
+      )
+      ON CONFLICT(url) DO UPDATE SET
+        slug = excluded.slug,
+        title = excluded.title,
+        normalized_slug = excluded.normalized_slug,
+        normalized_title = excluded.normalized_title,
+        lastmod = excluded.lastmod,
+        synced_at = excluded.synced_at
+    `,
+  ).run({
+    url: String(url || `local-tv-${normalizedSlug || Date.now()}`),
+    slug: String(slug || normalizedSlug),
+    title: String(title || slug || ""),
+    normalized_slug: normalizedSlug,
+    normalized_title: normalizedTitle,
+    lastmod: String(lastmod || ""),
+    synced_at: syncedAt,
+  });
+}
+
+async function upsertEpisodeIndexEntry({
+  url,
+  slug,
+  title,
+  seriesKey,
+  seasonNumber,
+  episodeNumber,
+  lastmod = "",
+} = {}) {
+  const db = await openDatabase();
+  const normalizedTitle = normalizeText(title || slug || "");
+  const normalizedSlug = normalizeSlug(slug || title || "");
+  const normalizedSeriesKey = normalizeText(seriesKey || "");
+  const syncedAt = new Date().toISOString();
+
+  db.prepare(
+    `
+      INSERT INTO episode_index (
+        url,
+        slug,
+        title,
+        normalized_slug,
+        normalized_title,
+        series_key,
+        season_number,
+        episode_number,
+        lastmod,
+        synced_at
+      ) VALUES (
+        @url,
+        @slug,
+        @title,
+        @normalized_slug,
+        @normalized_title,
+        @series_key,
+        @season_number,
+        @episode_number,
+        @lastmod,
+        @synced_at
+      )
+      ON CONFLICT(url) DO UPDATE SET
+        slug = excluded.slug,
+        title = excluded.title,
+        normalized_slug = excluded.normalized_slug,
+        normalized_title = excluded.normalized_title,
+        series_key = excluded.series_key,
+        season_number = excluded.season_number,
+        episode_number = excluded.episode_number,
+        lastmod = excluded.lastmod,
+        synced_at = excluded.synced_at
+    `,
+  ).run({
+    url: String(url || `local-episode-${normalizedSlug || Date.now()}`),
+    slug: String(slug || normalizedSlug),
+    title: String(title || slug || ""),
+    normalized_slug: normalizedSlug,
+    normalized_title: normalizedTitle,
+    series_key: normalizedSeriesKey,
+    season_number: Number(seasonNumber) || null,
+    episode_number: Number(episodeNumber) || null,
+    lastmod: String(lastmod || ""),
+    synced_at: syncedAt,
+  });
+}
+
 module.exports = {
   findEpisodeMatch,
   findTvMatch,
   getDatabasePath,
   openDatabase,
   syncWordpressIndex,
+  upsertEpisodeIndexEntry,
+  upsertTvIndexEntry,
 };

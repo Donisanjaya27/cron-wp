@@ -9,6 +9,8 @@ const {
   findEpisodeMatch,
   findTvMatch,
   syncWordpressIndex,
+  upsertEpisodeIndexEntry,
+  upsertTvIndexEntry,
 } = require("./wordpressIndexService");
 const { normalizeSlug, normalizeText } = require("../utils/normalize");
 
@@ -182,6 +184,71 @@ function buildTvPayload(payload, parsedFile) {
   };
 }
 
+async function rememberCreatedTv({
+  parsedFile,
+  tvDetails,
+  seriesVariants,
+  tvAction,
+}) {
+  if (!tvAction?.created || !tvAction.result?.ok) {
+    return null;
+  }
+
+  const title =
+    tvAction.result?.resolvedTitles?.tvTitle ||
+    tvAction.result?.resolvedTitles?.wpTitle ||
+    tvDetails?.name ||
+    parsedFile.seriesTitleGuess;
+  const slug =
+    seriesVariants?.slugVariants?.[0] ||
+    normalizeSlug(title || parsedFile.seriesSlugGuess);
+  const url = tvAction.result?.finalUrl || `local-tv-${slug}`;
+
+  await upsertTvIndexEntry({
+    url,
+    slug,
+    title,
+  });
+
+  return {
+    url,
+    slug,
+    title,
+  };
+}
+
+async function rememberCreatedEpisode({
+  parsedFile,
+  tvDetails,
+  episodeAction,
+}) {
+  if (!episodeAction?.created || !episodeAction.result?.ok) {
+    return null;
+  }
+
+  const title =
+    episodeAction.result?.resolvedTitles?.wpTitle ||
+    `${tvDetails?.name || parsedFile.seriesTitleGuess} Season ${parsedFile.seasonNumber} Episode ${parsedFile.episodeNumber}`;
+  const slug = normalizeSlug(title);
+  const url = episodeAction.result?.finalUrl || `local-episode-${slug}`;
+  const seriesKey = normalizeText(tvDetails?.name || parsedFile.seriesTitleGuess);
+
+  await upsertEpisodeIndexEntry({
+    url,
+    slug,
+    title,
+    seriesKey,
+    seasonNumber: parsedFile.seasonNumber,
+    episodeNumber: parsedFile.episodeNumber,
+  });
+
+  return {
+    url,
+    slug,
+    title,
+  };
+}
+
 function buildMovieUnsupportedResult({
   checkOnly,
   source,
@@ -336,6 +403,17 @@ async function processProviderUpload(
         ? "TV Show berhasil dibuat."
         : `TV Show gagal dibuat: ${tvAction.result?.error || "unknown error"}.`,
     );
+
+    const rememberedTv = await rememberCreatedTv({
+      parsedFile,
+      tvDetails,
+      seriesVariants,
+      tvAction,
+    });
+    if (rememberedTv) {
+      tvAction.existing = rememberedTv;
+      processLog.push(`TV lokal index diupdate: ${rememberedTv.slug}.`);
+    }
   }
 
   if (!episodeMatch && !checkOnly) {
@@ -360,6 +438,16 @@ async function processProviderUpload(
           ? "Episode berhasil dibuat."
           : `Episode gagal dibuat: ${episodeAction.result?.error || "unknown error"}.`,
       );
+
+      const rememberedEpisode = await rememberCreatedEpisode({
+        parsedFile,
+        tvDetails,
+        episodeAction,
+      });
+      if (rememberedEpisode) {
+        episodeAction.existing = rememberedEpisode;
+        processLog.push(`Episode lokal index diupdate: ${rememberedEpisode.slug}.`);
+      }
 
       const linkedTvUpdate = episodeAction.result?.linkedTvUpdate;
       if (episodeAction.created && linkedTvUpdate) {
