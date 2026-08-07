@@ -70,13 +70,23 @@
             </div>
 
             <div class="action-row">
-              <button type="submit" id="krakenSubmitButton">Proses Kraken</button>
-              <button type="button" id="krakenExampleButton" class="ghost-button">
+              <button type="submit" id="krakenSubmitButton">
+                Proses Kraken
+              </button>
+              <button
+                type="button"
+                id="krakenExampleButton"
+                class="ghost-button"
+              >
                 Isi Contoh Kraken
               </button>
             </div>
             <div class="action-row">
-              <button type="button" id="krakenEnqueueButton" class="ghost-button">
+              <button
+                type="button"
+                id="krakenEnqueueButton"
+                class="ghost-button"
+              >
                 Masuk Queue
               </button>
               <button
@@ -159,12 +169,20 @@ Belum ada proses Kraken.
               <button type="submit" id="filemoonSubmitButton">
                 Proses Filemoon
               </button>
-              <button type="button" id="filemoonExampleButton" class="ghost-button">
+              <button
+                type="button"
+                id="filemoonExampleButton"
+                class="ghost-button"
+              >
                 Isi Contoh Filemoon
               </button>
             </div>
             <div class="action-row">
-              <button type="button" id="filemoonEnqueueButton" class="ghost-button">
+              <button
+                type="button"
+                id="filemoonEnqueueButton"
+                class="ghost-button"
+              >
                 Masuk Queue
               </button>
               <button
@@ -233,6 +251,8 @@ Belum ada proses Filemoon.
               id="tmdbId"
               name="tmdbId"
               value="292696"
+              min="1"
+              step="1"
               required
             />
           </label>
@@ -246,6 +266,8 @@ Belum ada proses Filemoon.
                   id="seasonNumber"
                   name="seasonNumber"
                   value="1"
+                  min="1"
+                  step="1"
                   required
                 />
               </label>
@@ -257,6 +279,8 @@ Belum ada proses Filemoon.
                   id="episodeNumber"
                   name="episodeNumber"
                   value="30"
+                  min="1"
+                  step="1"
                   required
                 />
               </label>
@@ -345,7 +369,12 @@ Belum ada proses Filemoon.
           </label>
 
           <label id="touchTvRow" class="checkbox-row">
-            <input type="checkbox" id="touchLinkedTv" name="touchLinkedTv" checked />
+            <input
+              type="checkbox"
+              id="touchLinkedTv"
+              name="touchLinkedTv"
+              checked
+            />
             <span>Update tanggal TV terkait (naikin ke atas / terbaru)</span>
           </label>
 

@@ -376,10 +376,81 @@ function formatManualEpisodeResult(result) {
   return lines.join("\n");
 }
 
+function isPositiveFiniteInteger(value) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 1
+  );
+}
+
+function validateManualPayload(payload) {
+  const errors = [];
+
+  if (!isPositiveFiniteInteger(Number(payload.tmdbId))) {
+    errors.push(
+      `TMDB ID harus bilangan bulat positif (>= 1). Diterima: ${JSON.stringify(
+        payload.tmdbId,
+      )}`,
+    );
+  }
+
+  if (payload.postType === "episode") {
+    if (!isPositiveFiniteInteger(Number(payload.seasonNumber))) {
+      errors.push(
+        `Season harus bilangan bulat positif (>= 1). Diterima: ${JSON.stringify(
+          payload.seasonNumber,
+        )}`,
+      );
+    }
+    if (!isPositiveFiniteInteger(Number(payload.episodeNumber))) {
+      errors.push(
+        `Episode harus bilangan bulat positif (>= 1). Diterima: ${JSON.stringify(
+          payload.episodeNumber,
+        )}`,
+      );
+    }
+    if (!isPositiveFiniteInteger(Number(payload.serverNumber))) {
+      errors.push(
+        `Server harus bilangan bulat positif (>= 1). Diterima: ${JSON.stringify(
+          payload.serverNumber,
+        )}`,
+      );
+    }
+    if (!isPositiveFiniteInteger(Number(payload.downloadNumber))) {
+      errors.push(
+        `Download Ke harus bilangan bulat positif (>= 1). Diterima: ${JSON.stringify(
+          payload.downloadNumber,
+        )}`,
+      );
+    }
+    if (!payload.embedCode || !String(payload.embedCode).trim()) {
+      errors.push("Kode Embed wajib diisi.");
+    }
+  }
+
+  return errors;
+}
+
 async function submitEpisode(event) {
   event.preventDefault();
 
   const payload = readFormPayload();
+  const validationErrors = validateManualPayload(payload);
+
+  if (validationErrors && validationErrors.length) {
+    setStatus("error", "Gagal");
+    submitButton.disabled = false;
+    writeResult({
+      ok: false,
+      message: "Form ada yang salah, perbaiki sebelum submit.",
+      errors: validationErrors,
+    });
+    alert(validationErrors.join("\n"));
+    return;
+  }
+
   const mode = payload.dryRun
     ? "Dry run"
     : payload.submitAction === "publish"

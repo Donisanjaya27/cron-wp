@@ -113,21 +113,58 @@ function assertPayload(payload) {
   }
 }
 
+function isPositiveFiniteInteger(value) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 1
+  );
+}
+
 function assertEpisodePayload(payload) {
   if (!payload || typeof payload !== "object") {
     throw new Error("Payload episode harus berupa object.");
   }
 
-  if (!payload.tmdbId) {
-    throw new Error("`tmdbId` wajib diisi.");
+  if (!isPositiveFiniteInteger(Number(payload.tmdbId))) {
+    throw new Error(
+      `\`tmdbId\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.tmdbId,
+      )}`,
+    );
   }
 
-  if (!payload.seasonNumber && payload.seasonNumber !== 0) {
-    throw new Error("`seasonNumber` wajib diisi.");
+  if (!isPositiveFiniteInteger(Number(payload.seasonNumber))) {
+    throw new Error(
+      `\`seasonNumber\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.seasonNumber,
+      )}`,
+    );
   }
 
-  if (!payload.episodeNumber && payload.episodeNumber !== 0) {
-    throw new Error("`episodeNumber` wajib diisi.");
+  if (!isPositiveFiniteInteger(Number(payload.episodeNumber))) {
+    throw new Error(
+      `\`episodeNumber\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.episodeNumber,
+      )}`,
+    );
+  }
+
+  if (!isPositiveFiniteInteger(Number(payload.serverNumber ?? 1))) {
+    throw new Error(
+      `\`serverNumber\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.serverNumber,
+      )}`,
+    );
+  }
+
+  if (!isPositiveFiniteInteger(Number(payload.downloadNumber ?? 1))) {
+    throw new Error(
+      `\`downloadNumber\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.downloadNumber,
+      )}`,
+    );
   }
 
   if (!payload.embedCode) {
@@ -140,8 +177,12 @@ function assertTvPayload(payload) {
     throw new Error("Payload tv harus berupa object.");
   }
 
-  if (!payload.tmdbId) {
-    throw new Error("`tmdbId` wajib diisi.");
+  if (!isPositiveFiniteInteger(Number(payload.tmdbId))) {
+    throw new Error(
+      `\`tmdbId\` harus bilangan bulat positif (>=1). Diterima: ${JSON.stringify(
+        payload.tmdbId,
+      )}`,
+    );
   }
 }
 
@@ -246,80 +287,210 @@ async function fillPosterIfEmpty(page, selector, posterUrlResolver, payload) {
   };
 }
 
-async function waitForEpisodeTitleLoaded(page, tmdbId, timeout) {
-  await page.waitForFunction(
-    ({ wpTitleSelector, titleSelector, tmdbSelector, expectedTmdbId }) => {
-      const wpTitleInput = document.querySelector(wpTitleSelector);
-      const fetchedTitleInput = document.querySelector(titleSelector);
-      const tmdbInput = document.querySelector(tmdbSelector);
+function readEpisodeSnapshotSelectors() {
+  return {
+    wpTitleSelector: DEFAULT_EPISODE_SELECTORS.wpTitle,
+    seriesTitleSelector: DEFAULT_EPISODE_SELECTORS.seriesTitle,
+    titleSelector: DEFAULT_EPISODE_SELECTORS.fetchedTitle,
+    tmdbSelector: DEFAULT_EPISODE_SELECTORS.fetchedTmdbId,
+  };
+}
 
-      return Boolean(
-        wpTitleInput &&
-        wpTitleInput.value.trim() &&
-        fetchedTitleInput &&
-        fetchedTitleInput.value.trim() &&
-        tmdbInput &&
-        tmdbInput.value.trim() === expectedTmdbId,
-      );
-    },
-    {
-      wpTitleSelector: DEFAULT_EPISODE_SELECTORS.wpTitle,
-      titleSelector: DEFAULT_EPISODE_SELECTORS.fetchedTitle,
-      tmdbSelector: DEFAULT_EPISODE_SELECTORS.fetchedTmdbId,
-      expectedTmdbId: String(tmdbId),
-    },
-    { timeout },
-  );
+function readTvSnapshotSelectors() {
+  return {
+    wpTitleSelector: DEFAULT_TV_SELECTORS.wpTitle,
+    titleSelector: DEFAULT_TV_SELECTORS.fetchedTitle,
+    tmdbSelector: DEFAULT_TV_SELECTORS.fetchedTmdbId,
+  };
+}
 
-  return page.evaluate(
-    ({ wpTitleSelector, titleSelector, seriesTitleSelector }) => ({
-      wpTitle: document.querySelector(wpTitleSelector)?.value.trim() || "",
-      seriesTitle:
-        document.querySelector(seriesTitleSelector)?.value.trim() || "",
-      episodeTitle: document.querySelector(titleSelector)?.value.trim() || "",
-    }),
-    {
-      wpTitleSelector: DEFAULT_EPISODE_SELECTORS.wpTitle,
-      seriesTitleSelector: DEFAULT_EPISODE_SELECTORS.seriesTitle,
-      titleSelector: DEFAULT_EPISODE_SELECTORS.fetchedTitle,
-    },
+function episodeSnapshotIsLoaded(snapshot, expectedTmdbId) {
+  return Boolean(
+    snapshot &&
+    snapshot.wpTitle &&
+    snapshot.episodeTitle &&
+    snapshot.fetchedTmdbId &&
+    String(snapshot.fetchedTmdbId).trim() === String(expectedTmdbId).trim(),
   );
 }
 
-async function waitForTvTitleLoaded(page, tmdbId, timeout) {
-  await page.waitForFunction(
-    ({ wpTitleSelector, titleSelector, tmdbSelector, expectedTmdbId }) => {
-      const wpTitleInput = document.querySelector(wpTitleSelector);
-      const fetchedTitleInput = document.querySelector(titleSelector);
-      const tmdbInput = document.querySelector(tmdbSelector);
-
-      return Boolean(
-        wpTitleInput &&
-        wpTitleInput.value.trim() &&
-        fetchedTitleInput &&
-        fetchedTitleInput.value.trim() &&
-        tmdbInput &&
-        tmdbInput.value.trim() === expectedTmdbId,
-      );
-    },
-    {
-      wpTitleSelector: DEFAULT_TV_SELECTORS.wpTitle,
-      titleSelector: DEFAULT_TV_SELECTORS.fetchedTitle,
-      tmdbSelector: DEFAULT_TV_SELECTORS.fetchedTmdbId,
-      expectedTmdbId: String(tmdbId),
-    },
-    { timeout },
+function tvSnapshotIsLoaded(snapshot, expectedTmdbId) {
+  return Boolean(
+    snapshot &&
+    snapshot.wpTitle &&
+    snapshot.tvTitle &&
+    snapshot.fetchedTmdbId &&
+    String(snapshot.fetchedTmdbId).trim() === String(expectedTmdbId).trim(),
   );
+}
 
-  return page.evaluate(
-    ({ wpTitleSelector, titleSelector }) => ({
-      wpTitle: document.querySelector(wpTitleSelector)?.value.trim() || "",
-      tvTitle: document.querySelector(titleSelector)?.value.trim() || "",
-    }),
-    {
-      wpTitleSelector: DEFAULT_TV_SELECTORS.wpTitle,
-      titleSelector: DEFAULT_TV_SELECTORS.fetchedTitle,
-    },
+async function waitForEpisodeTitleLoaded(
+  page,
+  tmdbId,
+  timeout,
+  {
+    fetchButtonSelector = DEFAULT_EPISODE_SELECTORS.fetchButton,
+    maxAttempts = 3,
+  } = {},
+) {
+  const perAttemptTimeout = Math.max(
+    5000,
+    Math.floor(Math.min(timeout, 45000) / maxAttempts),
+  );
+  const selectors = readEpisodeSnapshotSelectors();
+  let lastSnapshot = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await page.waitForFunction(
+        ({
+          wpTitleSelector,
+          seriesTitleSelector,
+          titleSelector,
+          tmdbSelector,
+          expectedTmdbId,
+        }) => {
+          const wpTitleInput = document.querySelector(wpTitleSelector);
+          const seriesTitleInput = document.querySelector(seriesTitleSelector);
+          const fetchedTitleInput = document.querySelector(titleSelector);
+          const tmdbInput = document.querySelector(tmdbSelector);
+
+          const wpTitle = (wpTitleInput?.value || "").trim();
+          const seriesTitle = (seriesTitleInput?.value || "").trim();
+          const episodeTitle = (fetchedTitleInput?.value || "").trim();
+          const fetchedTmdbId = (tmdbInput?.value || "").trim();
+
+          return Boolean(
+            wpTitle &&
+            episodeTitle &&
+            fetchedTmdbId &&
+            fetchedTmdbId === String(expectedTmdbId),
+          );
+        },
+        {
+          ...selectors,
+          expectedTmdbId: String(tmdbId),
+        },
+        { timeout: perAttemptTimeout },
+      );
+    } catch (_error) {
+      // continue to re-click
+    }
+
+    lastSnapshot = await page.evaluate(
+      ({
+        wpTitleSelector,
+        seriesTitleSelector,
+        titleSelector,
+        tmdbSelector,
+      }) => ({
+        wpTitle: document.querySelector(wpTitleSelector)?.value.trim() || "",
+        seriesTitle:
+          document.querySelector(seriesTitleSelector)?.value.trim() || "",
+        episodeTitle: document.querySelector(titleSelector)?.value.trim() || "",
+        fetchedTmdbId: document.querySelector(tmdbSelector)?.value.trim() || "",
+      }),
+      selectors,
+    );
+
+    if (episodeSnapshotIsLoaded(lastSnapshot, tmdbId)) {
+      return {
+        wpTitle: lastSnapshot.wpTitle,
+        seriesTitle: lastSnapshot.seriesTitle || "",
+        episodeTitle: lastSnapshot.episodeTitle || "",
+      };
+    }
+
+    if (attempt < maxAttempts) {
+      try {
+        await clickAttachedElement(page, fetchButtonSelector, 5000);
+      } catch (_clickError) {
+        // ignore click error and keep waiting
+      }
+      await page.waitForTimeout(1200);
+    }
+  }
+
+  const snapshotSummary = JSON.stringify(lastSnapshot || {}, null, 0);
+  throw new Error(
+    `Timeout menunggu fetch informasi episode. Field terakhir: ${snapshotSummary}. Coba periksa TMDB ID=${tmdbId} atau plugin idmuvi-core di WP sedang error.`,
+  );
+}
+
+async function waitForTvTitleLoaded(
+  page,
+  tmdbId,
+  timeout,
+  {
+    fetchButtonSelector = DEFAULT_TV_SELECTORS.fetchButton,
+    maxAttempts = 3,
+  } = {},
+) {
+  const perAttemptTimeout = Math.max(
+    5000,
+    Math.floor(Math.min(timeout, 45000) / maxAttempts),
+  );
+  const selectors = readTvSnapshotSelectors();
+  let lastSnapshot = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await page.waitForFunction(
+        ({ wpTitleSelector, titleSelector, tmdbSelector, expectedTmdbId }) => {
+          const wpTitleInput = document.querySelector(wpTitleSelector);
+          const fetchedTitleInput = document.querySelector(titleSelector);
+          const tmdbInput = document.querySelector(tmdbSelector);
+
+          const wpTitle = (wpTitleInput?.value || "").trim();
+          const tvTitle = (fetchedTitleInput?.value || "").trim();
+          const fetchedTmdbId = (tmdbInput?.value || "").trim();
+
+          return Boolean(
+            wpTitle &&
+            tvTitle &&
+            fetchedTmdbId &&
+            fetchedTmdbId === String(expectedTmdbId),
+          );
+        },
+        {
+          ...selectors,
+          expectedTmdbId: String(tmdbId),
+        },
+        { timeout: perAttemptTimeout },
+      );
+    } catch (_error) {
+      // continue to re-click
+    }
+
+    lastSnapshot = await page.evaluate(
+      ({ wpTitleSelector, titleSelector, tmdbSelector }) => ({
+        wpTitle: document.querySelector(wpTitleSelector)?.value.trim() || "",
+        tvTitle: document.querySelector(titleSelector)?.value.trim() || "",
+        fetchedTmdbId: document.querySelector(tmdbSelector)?.value.trim() || "",
+      }),
+      selectors,
+    );
+
+    if (tvSnapshotIsLoaded(lastSnapshot, tmdbId)) {
+      return {
+        wpTitle: lastSnapshot.wpTitle,
+        tvTitle: lastSnapshot.tvTitle || "",
+      };
+    }
+
+    if (attempt < maxAttempts) {
+      try {
+        await clickAttachedElement(page, fetchButtonSelector, 5000);
+      } catch (_clickError) {
+        // ignore click error and keep waiting
+      }
+      await page.waitForTimeout(1200);
+    }
+  }
+
+  const snapshotSummary = JSON.stringify(lastSnapshot || {}, null, 0);
+  throw new Error(
+    `Timeout menunggu fetch informasi TV. Field terakhir: ${snapshotSummary}. Coba periksa TMDB ID=${tmdbId} atau plugin idmuvi-core di WP sedang error.`,
   );
 }
 
