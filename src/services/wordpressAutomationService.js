@@ -509,8 +509,29 @@ async function runWithWordpressPage(payload, runner) {
     login,
   } = normalizedPayload;
 
-  const browser = await chromium.launch({ headless });
-  const context = await browser.newContext();
+  const executablePath =
+    sanitizeUrl(process.env.PLAYWRIGHT_EXECUTABLE_PATH) ||
+    sanitizeUrl(process.env.CHROMIUM_PATH) ||
+    undefined;
+  const launchArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--disable-extensions",
+    "--disable-default-apps",
+  ];
+  if (executablePath) {
+    console.info(`[wp-browser] Pakai custom executablePath: ${executablePath}`);
+  }
+  const browser = await chromium.launch({
+    headless,
+    executablePath,
+    args: launchArgs,
+  });
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+  });
   const page = await context.newPage();
   const executionLog = [];
 
