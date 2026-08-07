@@ -48,13 +48,13 @@ async function fetchFilemoonFileInfo(fileId, payload = {}) {
   return result.data || null;
 }
 
-function normalizeFilemoonInfoUrls(fileId, fileInfo = {}) {
+function normalizeFilemoonInfoUrls(fileId, fileInfo = {}, baseDomainHint) {
   const urls = fileInfo?.urls || {};
 
   return {
-    page: urls.page || buildFilemoonPageUrl(fileId),
-    watch: urls.watch || buildFilemoonWatchUrl(fileId),
-    embed: urls.embed || buildFilemoonEmbedUrl(fileId),
+    page: urls.page || buildFilemoonPageUrl(fileId, baseDomainHint),
+    watch: urls.watch || buildFilemoonWatchUrl(fileId, baseDomainHint),
+    embed: urls.embed || buildFilemoonEmbedUrl(fileId, baseDomainHint),
   };
 }
 
@@ -78,10 +78,12 @@ async function resolveFilemoonSource(payload = {}) {
     );
   }
 
+  const baseDomainHint = rawUrl;
   const fileInfo = fileId ? await fetchFilemoonFileInfo(fileId, payload) : null;
-  const urls = normalizeFilemoonInfoUrls(fileId, fileInfo);
+  const urls = normalizeFilemoonInfoUrls(fileId, fileInfo, baseDomainHint);
   const mediaLinks = resolveFilemoonMediaLinks({
     fileId,
+    baseDomain: baseDomainHint,
     downloadUrl: payload.downloadUrl || payload.filemoonUrl || urls.page,
     watchUrl: payload.watchUrl || urls.watch,
     embedUrl: payload.embedUrl || urls.embed,

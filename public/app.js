@@ -91,30 +91,55 @@ const providerConfigs = {
     listJobsEndpoint: "/api/wordpress/v2/filemoon/jobs?limit=20",
     sourceKey: "filemoonSource",
     examplePayload: {
-      url: "https://filemoon.org/0JgG7vRZzoYW/file",
+      url: "https://bysezejataos.com/d/fru1i2weqr2f/drakorid-720p-the-husband-2026-ep3",
+      tmdbId: 239901,
+      seasonNumber: 1,
+      episodeNumber: 3,
       submitAction: "publish",
       checkOnly: false,
     },
     readPayload() {
       const formData = new FormData(this.form);
       const url = String(formData.get("filemoonUrl") || "").trim();
+      const tmdbIdRaw = formData.get("filemoonTmdbId");
+      const seasonRaw = formData.get("filemoonSeasonNumber");
+      const episodeRaw = formData.get("filemoonEpisodeNumber");
+      const tmdbId = tmdbIdRaw ? Number(tmdbIdRaw) : undefined;
+      const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
+      const episodeNumber = episodeRaw ? Number(episodeRaw) : undefined;
 
-      return {
+      const payload = {
         filemoonUrl: url,
         downloadUrl: url,
         submitAction: String(formData.get("filemoonSubmitAction") || "publish"),
         checkOnly: document.getElementById("filemoonCheckOnly").checked,
       };
+      if (tmdbId && Number.isInteger(tmdbId) && tmdbId >= 1) {
+        payload.tmdbId = tmdbId;
+      }
+      if (seasonNumber && Number.isInteger(seasonNumber) && seasonNumber >= 1) {
+        payload.seasonNumber = seasonNumber;
+      }
+      if (episodeNumber && Number.isInteger(episodeNumber) && episodeNumber >= 1) {
+        payload.episodeNumber = episodeNumber;
+      }
+      return payload;
     },
     fillExample() {
       this.form.elements.namedItem("filemoonUrl").value =
         this.examplePayload.url;
+      this.form.elements.namedItem("filemoonTmdbId").value =
+        this.examplePayload.tmdbId;
+      this.form.elements.namedItem("filemoonSeasonNumber").value =
+        this.examplePayload.seasonNumber;
+      this.form.elements.namedItem("filemoonEpisodeNumber").value =
+        this.examplePayload.episodeNumber;
       this.form.elements.namedItem("filemoonSubmitAction").value =
         this.examplePayload.submitAction;
       document.getElementById("filemoonCheckOnly").checked =
         this.examplePayload.checkOnly;
       this.modeLabel.textContent = "Contoh Filemoon dimuat";
-      writeProviderLog("filemoon", "Contoh URL Filemoon sudah dimasukkan.");
+      writeProviderLog("filemoon", "Contoh URL + TMDB ID Filemoon sudah dimasukkan.");
     },
   },
 };

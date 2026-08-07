@@ -2,7 +2,12 @@ const {
   runEpisodeAutomation,
   runTvAutomation,
 } = require("./wordpressAutomationService");
-const { parseKrakenFilename } = require("./krakenFilenameParser");
+const {
+  parseKrakenFilename,
+  parseKrakenFilenameLenient,
+  mergeManualOverride,
+  extractSeasonEpisodeFromSlug,
+} = require("./krakenFilenameParser");
 const { resolveKrakenSource } = require("./krakenSourceService");
 const { resolveFilemoonSource } = require("./filemoonSourceService");
 const {
@@ -243,10 +248,48 @@ async function processProviderUpload(
   }
   processLog.push(`Nama file ${providerTitle}: ${source.fileName}.`);
 
-  const parsedFile = parseKrakenFilename(source.fileName);
-  processLog.push(
-    `Hasil parse: tmdbId=${parsedFile.tmdbId}, season=${parsedFile.seasonNumber}, episode=${parsedFile.episodeNumber}.`,
-  );
+  const overrideTmdbId = Number(payload.tmdbId);
+  const hasManualTmdbIdOverride =
+    Number.isInteger(overrideTmdbId) && overrideTmdbId >= 1;
+
+  let parsedFile;
+  if (hasManualTmdbIdOverride) {
+    const fromUrlSlug = extractSeasonEpisodeFromSlug(
+      payload.filemoonUrl ||
+        payload.krakenUrl ||
+        payload.downloadUrl ||
+        source.fileName,
+    );
+    const fallback = {
+      tmdbId: overrideTmdbId,
+      seasonNumber:
+        Number(payload.seasonNumber) || fromUrlSlug.seasonNumber || undefined,
+      episodeNumber:
+        Number(payload.episodeNumber) || fromUrlSlug.episodeNumber || undefined,
+      mediaType: "tv",
+    };
+    parsedFile = parseKrakenFilenameLenient(source.fileName, fallback);
+    parsedFile = mergeManualOverride(parsedFile, {
+      tmdbId: overrideTmdbId,
+      seasonNumber: payload.seasonNumber,
+      episodeNumber: payload.episodeNumber,
+    });
+    processLog.push(
+      `Mode override TMDB ID AKTIF (user isi manual). tmdbId=${parsedFile.tmdbId}, season=${parsedFile.seasonNumber}, episode=${parsedFile.episodeNumber}.`,
+    );
+  } else {
+    parsedFile = parseKrakenFilename(source.fileName);
+    processLog.push(
+      `Hasil parse: tmdbId=${parsedFile.tmdbId}, season=${parsedFile.seasonNumber}, episode=${parsedFile.episodeNumber}.`,
+    );
+  }
+
+  if (parsedFile.mediaType === "tv" && !parsedFile.episodeNumber) {
+    throw new Error(
+      "Nomor episode tidak ditemukan. Isi field Episode manual atau pastikan URL/file memiliki pola `epX` di slug-nya.",
+    );
+  }
+
   const mediaLinks = source.mediaLinks;
   const syncResult = await syncWordpressIndex({
     force: Boolean(payload.forceSync),
@@ -327,7 +370,10 @@ async function processProviderUpload(
   if (!tvMatch && !checkOnly) {
     processLog.push("Mulai create TV Show ke WordPress.");
     tvAction.result = await runTvAutomation(
-      buildTvPayload({ ...payload, sourceLabel, provider: providerName }, parsedFile),
+      buildTvPayload(
+        { ...payload, sourceLabel, provider: providerName },
+        parsedFile,
+      ),
     );
     tvAction.created = Boolean(tvAction.result?.ok);
     tvAction.skipped = false;

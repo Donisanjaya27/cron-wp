@@ -52,34 +52,85 @@ function extractFilemoonFileIdFromUrl(rawUrl) {
   }
 
   const match = value.match(
-    /filemoon\.org\/(?:[a-z]{2}\/)?([A-Za-z0-9]+)\/(?:file|watch|embed)/i,
+    /(?:filemoon\.org|byse\.sx|bysezejataos\.com|[a-z0-9-]+\.sx|[a-z0-9-]+\.com)\/(?:[a-z]{2}\/|d\/)?([A-Za-z0-9]+)(?:\/(?:file|watch|embed|d\/[^/]+)?)?/i,
   );
 
   return match?.[1] || "";
 }
 
-function buildFilemoonPageUrl(fileId) {
-  if (!fileId) {
-    return "";
+function extractDomainFromUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) {
+    return "filemoon.org";
   }
 
-  return `https://filemoon.org/${fileId}/file`;
+  try {
+    const u = new URL(value);
+    return u.hostname || "filemoon.org";
+  } catch {
+    const match = value.match(/\/\/([^/]+)/);
+    return match?.[1] || "filemoon.org";
+  }
 }
 
-function buildFilemoonWatchUrl(fileId) {
-  if (!fileId) {
-    return "";
+function extractSeasonEpisodeFromSlug(rawSlugOrUrl) {
+  const value = String(rawSlugOrUrl || "").trim();
+  if (!value) {
+    return { seasonNumber: null, episodeNumber: null };
   }
 
-  return `https://filemoon.org/${fileId}/watch`;
+  const tokens = value.split(/[-_./?&#\s]+/).filter(Boolean);
+  let seasonNumber = null;
+  let episodeNumber = null;
+
+  for (const token of tokens) {
+    if (episodeNumber === null) {
+      const epMatch = token.match(/^ep(?:isode)?(\d+)$/i);
+      if (epMatch) {
+        episodeNumber = Number(epMatch[1]);
+        continue;
+      }
+      const sMatch = token.match(/^s(\d+)e(\d+)$/i);
+      if (sMatch) {
+        seasonNumber = Number(sMatch[1]);
+        episodeNumber = Number(sMatch[2]);
+        continue;
+      }
+    }
+    if (seasonNumber === null) {
+      const sMatch = token.match(/^s(?:eason)?(\d+)$/i);
+      if (sMatch) {
+        seasonNumber = Number(sMatch[1]);
+        continue;
+      }
+    }
+  }
+
+  return { seasonNumber, episodeNumber };
 }
 
-function buildFilemoonEmbedUrl(fileId) {
+function buildFilemoonPageUrl(fileId, baseUrlOrDomain) {
   if (!fileId) {
     return "";
   }
+  const host = extractDomainFromUrl(baseUrlOrDomain || "https://filemoon.org");
+  return `https://${host}/${fileId}/file`;
+}
 
-  return `https://filemoon.org/${fileId}/embed`;
+function buildFilemoonWatchUrl(fileId, baseUrlOrDomain) {
+  if (!fileId) {
+    return "";
+  }
+  const host = extractDomainFromUrl(baseUrlOrDomain || "https://filemoon.org");
+  return `https://${host}/${fileId}/watch`;
+}
+
+function buildFilemoonEmbedUrl(fileId, baseUrlOrDomain) {
+  if (!fileId) {
+    return "";
+  }
+  const host = extractDomainFromUrl(baseUrlOrDomain || "https://filemoon.org");
+  return `https://${host}/${fileId}/embed`;
 }
 
 function buildEmbedCode(embedUrl) {
@@ -118,16 +169,21 @@ function resolveFilemoonMediaLinks({
   embedUrl,
   embedCode,
   fileId,
+  baseDomain,
 } = {}) {
+  const anyUrlForDomain =
+    baseDomain || downloadUrl || watchUrl || embedUrl || "";
   const resolvedFileId =
     fileId ||
     extractFilemoonFileIdFromUrl(downloadUrl) ||
     extractFilemoonFileIdFromUrl(watchUrl) ||
     extractFilemoonFileIdFromUrl(embedUrl);
   const resolvedDownloadUrl =
-    downloadUrl || buildFilemoonPageUrl(resolvedFileId);
-  const resolvedWatchUrl = watchUrl || buildFilemoonWatchUrl(resolvedFileId);
-  const resolvedEmbedUrl = embedUrl || buildFilemoonEmbedUrl(resolvedFileId);
+    downloadUrl || buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
+  const resolvedWatchUrl =
+    watchUrl || buildFilemoonWatchUrl(resolvedFileId, anyUrlForDomain);
+  const resolvedEmbedUrl =
+    embedUrl || buildFilemoonEmbedUrl(resolvedFileId, anyUrlForDomain);
 
   return {
     fileId: resolvedFileId,
@@ -136,6 +192,26 @@ function resolveFilemoonMediaLinks({
     embedUrl: resolvedEmbedUrl,
     embedCode: embedCode || buildEmbedCode(resolvedEmbedUrl),
   };
+}
+
+function mergeManualOverride(parsedFile, override = {}) {
+  const result = { ...(parsedFile || {}) };
+  const overrideTmdbId = Number(override.tmdbId);
+  if (Number.isInteger(overrideTmdbId) && overrideTmdbId >= 1) {
+    result.tmdbId = overrideTmdbId;
+  }
+  const overrideSeason = Number(override.seasonNumber);
+  if (Number.isInteger(overrideSeason) && overrideSeason >= 1) {
+    result.seasonNumber = overrideSeason;
+  }
+  const overrideEpisode = Number(override.episodeNumber);
+  if (Number.isInteger(overrideEpisode) && overrideEpisode >= 1) {
+    result.episodeNumber = overrideEpisode;
+  }
+  if (override.mediaType) {
+    result.mediaType = override.mediaType;
+  }
+  return result;
 }
 
 function parseKrakenFilename(fileName) {
@@ -240,6 +316,79 @@ function parseKrakenFilename(fileName) {
   };
 }
 
+function parseKrakenFilenameLenient(fileName, fallback = {}) {
+  const baseName = stripExtension(fileName);
+  const fromSlug = baseName
+    ? extractSeasonEpisodeFromSlug(baseName)
+    : { seasonNumber: null, episodeNumber: null };
+
+  const tmdbIdNum = Number(fallback.tmdbId);
+  const mediaType =
+    fallback.mediaType || (fromSlug.episodeNumber ? "tv" : "tv");
+
+  const seasonOverride = Number(fallback.seasonNumber);
+  const episodeOverride = Number(fallback.episodeNumber);
+  let seasonNumber =
+    Number.isInteger(seasonOverride) && seasonOverride >= 1
+      ? seasonOverride
+      : fromSlug.seasonNumber || 1;
+  let episodeNumber =
+    Number.isInteger(episodeOverride) && episodeOverride >= 1
+      ? episodeOverride
+      : fromSlug.episodeNumber;
+
+  const parts = baseName.split("-").filter(Boolean);
+  let quality = "";
+  let releaseYear = "";
+  let sourceTag = "";
+  const titleTokens = [];
+
+  for (const rawPart of parts) {
+    const part = String(rawPart).trim();
+    if (!part) continue;
+    if (!sourceTag && IGNORED_TOKENS.has(part.toLowerCase())) {
+      sourceTag = part;
+      continue;
+    }
+    if (!quality && QUALITY_PATTERN.test(part)) {
+      quality = part.toLowerCase();
+      continue;
+    }
+    if (SEASON_PATTERN.test(part) || EPISODE_PATTERN.test(part)) continue;
+    if (!releaseYear && YEAR_PATTERN.test(part)) {
+      releaseYear = part;
+      continue;
+    }
+    titleTokens.push(part);
+  }
+
+  const seriesSlugGuess = titleTokens.join("-").toLowerCase();
+  const seriesTitleGuess = humanizeSlug(seriesSlugGuess);
+  const normalizedSeriesSlug = normalizeSlug(seriesSlugGuess);
+  const seriesTitleVariants = uniqueValues(
+    [
+      seriesTitleGuess,
+      titleTokens.join(" "),
+      normalizedSeriesSlug.replace(/-/g, " "),
+    ].map((value) => value.trim()),
+  );
+
+  return {
+    fileName: path.basename(String(fileName || "")),
+    rawName: baseName,
+    mediaType,
+    tmdbId: Number.isInteger(tmdbIdNum) && tmdbIdNum >= 1 ? tmdbIdNum : 0,
+    seasonNumber,
+    episodeNumber,
+    quality,
+    releaseYear,
+    sourceTag,
+    seriesSlugGuess,
+    seriesTitleGuess,
+    seriesTitleVariants,
+  };
+}
+
 module.exports = {
   buildEmbedCode,
   buildFilemoonEmbedUrl,
@@ -247,9 +396,13 @@ module.exports = {
   buildFilemoonWatchUrl,
   buildKrakenDownloadUrl,
   buildKrakenEmbedUrl,
+  extractDomainFromUrl,
   extractFilemoonFileIdFromUrl,
   extractKrakenFileIdFromUrl,
+  extractSeasonEpisodeFromSlug,
+  mergeManualOverride,
   parseKrakenFilename,
+  parseKrakenFilenameLenient,
   resolveFilemoonMediaLinks,
   resolveKrakenMediaLinks,
 };

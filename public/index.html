@@ -140,11 +140,50 @@ Belum ada proses Kraken.
                 type="url"
                 id="filemoonUrl"
                 name="filemoonUrl"
-                value="https://filemoon.org/0JgG7vRZzoYW/file"
-                placeholder="https://filemoon.org/FILE_ID/file"
+                value="https://bysezejataos.com/d/fru1i2weqr2f/drakorid-720p-the-husband-2026-ep3"
+                placeholder="https://filemoon.org/FILE_ID/file atau https://bysezejataos.com/d/.../...ep3"
                 required
               />
             </label>
+
+            <label class="field">
+              <span>TMDB ID (Manual, karena file tidak bisa rename)</span>
+              <input
+                type="number"
+                id="filemoonTmdbId"
+                name="filemoonTmdbId"
+                min="1"
+                step="1"
+                placeholder="Contoh: 239901 — isi manual ID TMDB disini"
+                required
+              />
+            </label>
+
+            <div class="field-grid two-columns">
+              <label class="field">
+                <span>Season (optional, override dari URL)</span>
+                <input
+                  type="number"
+                  id="filemoonSeasonNumber"
+                  name="filemoonSeasonNumber"
+                  min="1"
+                  step="1"
+                  placeholder="Default: 1"
+                />
+              </label>
+
+              <label class="field">
+                <span>Episode (optional, override dari URL)</span>
+                <input
+                  type="number"
+                  id="filemoonEpisodeNumber"
+                  name="filemoonEpisodeNumber"
+                  min="1"
+                  step="1"
+                  placeholder="Kosongkan untuk ambil dari URL slug epX"
+                />
+              </label>
+            </div>
 
             <div class="field-grid two-columns">
               <label class="field">
