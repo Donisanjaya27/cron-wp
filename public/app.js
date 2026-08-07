@@ -7,6 +7,7 @@ const modeLabel = document.getElementById("modeLabel");
 const postTypeField = document.getElementById("postType");
 const episodeOnlyFields = document.getElementById("episodeOnlyFields");
 const submitActionField = document.getElementById("submitAction");
+const touchTvRow = document.getElementById("touchTvRow");
 const providerTabs = Array.from(document.querySelectorAll(".provider-tab"));
 const providerPanes = Array.from(
   document.querySelectorAll("[data-provider-pane]"),
@@ -79,7 +80,9 @@ const providerConfigs = {
     submitButton: document.getElementById("filemoonSubmitButton"),
     exampleButton: document.getElementById("filemoonExampleButton"),
     enqueueButton: document.getElementById("filemoonEnqueueButton"),
-    processPendingButton: document.getElementById("filemoonProcessPendingButton"),
+    processPendingButton: document.getElementById(
+      "filemoonProcessPendingButton",
+    ),
     syncSitemapButton: document.getElementById("filemoonSyncSitemapButton"),
     listJobsButton: document.getElementById("filemoonListJobsButton"),
     processEndpoint: "/api/wordpress/v2/process-filemoon-url",
@@ -152,6 +155,7 @@ function togglePostTypeFields() {
 
   episodeOnlyFields.hidden = isTv;
   submitActionField.value = isTv ? "publish" : "save";
+  touchTvRow.hidden = isTv;
 
   const fields = episodeOnlyFields.querySelectorAll("input, textarea, select");
   fields.forEach((field) => {
@@ -202,6 +206,9 @@ function readFormPayload() {
     downloadTitle: String(formData.get("downloadTitle") || "").trim(),
     downloadUrl: String(formData.get("downloadUrl") || "").trim(),
     embedCode: String(formData.get("embedCode") || ""),
+    touchLinkedTvShowAfterSave:
+      document.getElementById("touchLinkedTv").checked,
+    linkedTvDateMode: "publish-now",
   };
 }
 
@@ -327,6 +334,48 @@ function selectProviderTab(provider) {
   });
 }
 
+function formatManualEpisodeResult(result) {
+  const lines = [];
+
+  if (result.executionLog && result.executionLog.length) {
+    lines.push("Log proses:");
+    result.executionLog.forEach((item, index) => {
+      lines.push(`${index + 1}. ${item}`);
+    });
+    lines.push("");
+  }
+
+  lines.push(
+    JSON.stringify(
+      {
+        ok: result.ok,
+        finalUrl: result.finalUrl,
+        submitAction: result.submitAction,
+        posterFillResult: result.posterFillResult || null,
+        featuredImageResult: result.featuredImageResult || null,
+        resolvedTitles: result.resolvedTitles || null,
+        linkedTvUpdate: result.linkedTvUpdate || null,
+      },
+      null,
+      2,
+    ),
+  );
+
+  if (result.featuredImageResult) {
+    lines.push("");
+    lines.push("Featured Image:");
+    lines.push(JSON.stringify(result.featuredImageResult, null, 2));
+  }
+
+  if (result.linkedTvUpdate) {
+    lines.push("");
+    lines.push("Update Tanggal TV:");
+    lines.push(JSON.stringify(result.linkedTvUpdate, null, 2));
+  }
+
+  return lines.join("\n");
+}
+
 async function submitEpisode(event) {
   event.preventDefault();
 
@@ -366,7 +415,7 @@ async function submitEpisode(event) {
     }
 
     setStatus("success", "Berhasil");
-    writeResult(result);
+    writeResult(formatManualEpisodeResult(result));
   } catch (error) {
     setStatus("error", "Error");
     writeResult({
@@ -537,13 +586,21 @@ providerTabs.forEach((button) => {
 
 Object.entries(providerConfigs).forEach(([provider, config]) => {
   config.exampleButton.addEventListener("click", () => config.fillExample());
-  config.enqueueButton.addEventListener("click", () => enqueueProviderJob(provider));
+  config.enqueueButton.addEventListener("click", () =>
+    enqueueProviderJob(provider),
+  );
   config.processPendingButton.addEventListener("click", () =>
     processPendingProviderJobs(provider),
   );
-  config.syncSitemapButton.addEventListener("click", () => syncSitemapNow(provider));
-  config.listJobsButton.addEventListener("click", () => listProviderJobs(provider));
-  config.form.addEventListener("submit", (event) => submitProvider(event, provider));
+  config.syncSitemapButton.addEventListener("click", () =>
+    syncSitemapNow(provider),
+  );
+  config.listJobsButton.addEventListener("click", () =>
+    listProviderJobs(provider),
+  );
+  config.form.addEventListener("submit", (event) =>
+    submitProvider(event, provider),
+  );
 });
 
 fillExample();

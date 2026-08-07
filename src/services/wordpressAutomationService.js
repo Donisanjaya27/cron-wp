@@ -28,6 +28,8 @@ const DEFAULT_EPISODE_SELECTORS = {
   saveDraft: "#save-post",
   publish: "#publish",
   successNotice: "#message.updated, .updated, .notice-success",
+  setFeatureImageLink: "#set-post-thumbnail",
+  removeFeatureImageLink: "#remove-post-thumbnail",
 };
 const DEFAULT_TV_SELECTORS = {
   tmdbId: "#idmuvi-core-id",
@@ -42,6 +44,17 @@ const DEFAULT_TV_SELECTORS = {
   saveDraft: "#save-post",
   publish: "#publish",
   successNotice: "#message.updated, .updated, .notice-success",
+  setFeatureImageLink: "#set-post-thumbnail",
+  removeFeatureImageLink: "#remove-post-thumbnail",
+};
+
+const FEATURED_IMAGE_SELECTORS = {
+  mediaFrame: ".media-modal",
+  insertFromUrlTab: "#menu-item-insert_from_url",
+  insertFromUrlInput: "#embed-url-field",
+  insertFromUrlButton: ".media-button-insert",
+  thumbnailPreview: "#postimagediv img",
+  frameClose: ".media-modal-close",
 };
 
 function sanitizeUrl(rawUrl) {
@@ -535,6 +548,140 @@ async function setSeoKeyphraseWithSelectors(page, value, selectors) {
   }
 }
 
+async function setFeaturedImageFromUrl(
+  page,
+  { imageUrl, navigationTimeout = DEFAULT_TIMEOUT } = {},
+) {
+  const result = {
+    set: false,
+    reason: "Belum diproses.",
+    imageUrl: imageUrl || "",
+  };
+
+  const cleanUrl = sanitizeUrl(imageUrl);
+  if (!cleanUrl) {
+    result.reason = "Gambar tidak ditemukan (imageUrl kosong).";
+    return result;
+  }
+
+  try {
+    const setThumbnailLink = page.locator(
+      DEFAULT_TV_SELECTORS.setFeatureImageLink,
+    );
+    const removeThumbnailLink = page.locator(
+      DEFAULT_TV_SELECTORS.removeFeatureImageLink,
+    );
+
+    if ((await setThumbnailLink.count()) === 0) {
+      result.reason = "Element Set featured image tidak ditemukan.";
+      return result;
+    }
+
+    if (
+      (await removeThumbnailLink.count()) &&
+      (await removeThumbnailLink.isVisible().catch(() => false))
+    ) {
+      result.set = true;
+      result.reason =
+        "Featured image sudah terpasang sebelumnya, tidak diubah.";
+      return result;
+    }
+
+    await clickAttachedElement(
+      page,
+      DEFAULT_TV_SELECTORS.setFeatureImageLink,
+      navigationTimeout,
+    );
+
+    try {
+      await page.waitForSelector(FEATURED_IMAGE_SELECTORS.mediaFrame, {
+        state: "attached",
+        timeout: Math.min(navigationTimeout, 15000),
+      });
+    } catch (_error) {
+      result.reason = "Media frame tidak muncul.";
+      return result;
+    }
+
+    const tabLocator = page.locator(FEATURED_IMAGE_SELECTORS.insertFromUrlTab);
+    if (await tabLocator.count()) {
+      try {
+        await clickAttachedElement(
+          page,
+          FEATURED_IMAGE_SELECTORS.insertFromUrlTab,
+          Math.min(navigationTimeout, 8000),
+        );
+      } catch (_error) {
+        // ignore; keep current tab
+      }
+    }
+
+    await page.waitForTimeout(400);
+    const inputLocator = page.locator(
+      FEATURED_IMAGE_SELECTORS.insertFromUrlInput,
+    );
+    const inputCount = await inputLocator.count();
+    if (!inputCount) {
+      result.reason = "Input Insert from URL tidak ditemukan.";
+      try {
+        await clickAttachedElement(
+          page,
+          FEATURED_IMAGE_SELECTORS.frameClose,
+          5000,
+        );
+      } catch (_error) {
+        // ignore
+      }
+      return result;
+    }
+
+    await inputLocator.first().fill(cleanUrl);
+    await page.waitForTimeout(700);
+
+    const buttonLocator = page.locator(
+      FEATURED_IMAGE_SELECTORS.insertFromUrlButton,
+    );
+    const buttonCount = await buttonLocator.count();
+    if (!buttonCount) {
+      result.reason =
+        "Tombol Set featured image (Insert from URL) tidak ditemukan.";
+      try {
+        await clickAttachedElement(
+          page,
+          FEATURED_IMAGE_SELECTORS.frameClose,
+          5000,
+        );
+      } catch (_error) {
+        // ignore
+      }
+      return result;
+    }
+
+    await clickAttachedElement(
+      page,
+      FEATURED_IMAGE_SELECTORS.insertFromUrlButton,
+      Math.min(navigationTimeout, 20000),
+    );
+
+    try {
+      await page.waitForSelector(FEATURED_IMAGE_SELECTORS.thumbnailPreview, {
+        state: "attached",
+        timeout: Math.min(navigationTimeout, 15000),
+      });
+      result.set = true;
+      result.reason = "Featured image berhasil dipasang via Insert from URL.";
+      return result;
+    } catch (_error) {
+      result.reason =
+        "Featured image setelah submit tidak terdeteksi preview-nya.";
+      return result;
+    }
+  } catch (error) {
+    result.reason = `Gagal set featured image: ${error.message}`;
+    return result;
+  }
+}
+
 function buildAdminUrl(pathname) {
   const loginUrl = new URL(process.env.WORDPRESS_LOGIN_URL);
   return new URL(pathname, loginUrl.origin).toString();
@@ -740,7 +887,7 @@ async function runEpisodeAutomation(payload) {
         downloadTitle,
         downloadUrl,
         dryRun = false,
-        touchLinkedTvShowAfterSave = false,
+        touchLinkedTvShowAfterSave = true,
         submitAction = "save",
       } = normalizedPayload;
 
@@ -788,6 +935,16 @@ async function runEpisodeAutomation(payload) {
           : `Poster episode tidak diubah: ${posterFillResult.reason}`,
       );
 
+      const featuredImageResult = await setFeaturedImageFromUrl(page, {
+        imageUrl: posterFillResult.posterUrl,
+        navigationTimeout,
+      });
+      executionLog.push(
+        featuredImageResult.set
+          ? `Featured image episode: ${featuredImageResult.reason}`
+          : `Featured image episode tidak di-set: ${featuredImageResult.reason}`,
+      );
+
       await setSeoKeyphrase(page, resolvedTitles.wpTitle);
       executionLog.push("Isi Frasa kunci utama dari judul WordPress.");
 
@@ -815,6 +972,7 @@ async function runEpisodeAutomation(payload) {
         return {
           dryRun: true,
           downloadNumber,
+          featuredImageResult,
           posterFillResult,
           resolvedTitles,
           serverNumber,
@@ -857,6 +1015,7 @@ async function runEpisodeAutomation(payload) {
 
       return {
         downloadNumber,
+        featuredImageResult,
         linkedTvUpdate,
         posterFillResult,
         resolvedTitles,
@@ -923,6 +1082,16 @@ async function runTvAutomation(payload) {
           : `Poster TV tidak diubah: ${posterFillResult.reason}`,
       );
 
+      const featuredImageResult = await setFeaturedImageFromUrl(page, {
+        imageUrl: posterFillResult.posterUrl,
+        navigationTimeout,
+      });
+      executionLog.push(
+        featuredImageResult.set
+          ? `Featured image TV: ${featuredImageResult.reason}`
+          : `Featured image TV tidak di-set: ${featuredImageResult.reason}`,
+      );
+
       await setSeoKeyphraseWithSelectors(
         page,
         resolvedTitles.wpTitle,
@@ -936,6 +1105,7 @@ async function runTvAutomation(payload) {
         return {
           dryRun: true,
           posterFillResult,
+          featuredImageResult,
           resolvedTitles,
         };
       }
@@ -952,6 +1122,7 @@ async function runTvAutomation(payload) {
 
       return {
         posterFillResult,
+        featuredImageResult,
         resolvedTitles,
         submitAction,
       };
