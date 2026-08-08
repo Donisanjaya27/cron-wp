@@ -7,16 +7,23 @@ const {
 } = require("./krakenFilenameParser");
 
 function getFilemoonApiBaseUrl() {
-  return process.env.FILEMOON_API_BASE_URL || "https://filemoon.org/api/v1";
+  return (
+    process.env.FILEMOON_API_BASE_URL ||
+    process.env.BYSE_API_BASE_URL ||
+    "https://api.byse.sx/"
+  );
 }
 
 function getFilemoonApiToken(payload = {}) {
   return String(
-    payload.filemoonApiToken || process.env.FILEMOON_API_TOKEN || "",
+    payload.filemoonApiToken ||
+      process.env.FILEMOON_API_TOKEN ||
+      process.env.BYSE_API_KEY ||
+      "",
   ).trim();
 }
 
-async function fetchFilemoonJson(pathname, payload = {}) {
+async function fetchFilemoonJson(pathname, payload = {}, extraParams = {}) {
   const token = getFilemoonApiToken(payload);
   if (!token) {
     throw new Error("FILEMOON_API_TOKEN belum diisi.");
@@ -25,17 +32,28 @@ async function fetchFilemoonJson(pathname, payload = {}) {
   const baseUrl = getFilemoonApiBaseUrl().replace(/\/$/, "");
   const cleanPath = String(pathname || "").replace(/^\/+/, "");
   const url = new URL(`${baseUrl}/${cleanPath}`);
+  url.searchParams.set("key", token);
+  for (const [k, v] of Object.entries(extraParams || {})) {
+    if (v !== undefined && v !== null && v !== "") {
+      url.searchParams.set(k, String(v));
+    }
+  }
   const response = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${token}`,
       Accept: "application/json",
     },
   });
   const data = await response.json().catch(() => ({}));
 
-  if (!response.ok || data?.success === false) {
+  const success =
+    data?.success === true ||
+    data?.status === 200 ||
+    (response.ok && data && typeof data === "object" && !data?.error);
+  if (!response.ok || data?.success === false || data?.status === 401) {
     throw new Error(
-      data?.message ||
+      data?.msg ||
+        data?.message ||
+        data?.error ||
         `Filemoon API gagal: ${response.status} ${response.statusText}`,
     );
   }
@@ -44,8 +62,15 @@ async function fetchFilemoonJson(pathname, payload = {}) {
 }
 
 async function fetchFilemoonFileInfo(fileId, payload = {}) {
-  const result = await fetchFilemoonJson(`/files/${fileId}`, payload);
-  return result.data || null;
+  const result = await fetchFilemoonJson("/file/info", payload, {
+    file_code: fileId,
+  });
+  return (
+    result?.data ||
+    result?.result ||
+    (result?.success === true ? result : null) ||
+    null
+  );
 }
 
 function normalizeFilemoonInfoUrls(fileId, fileInfo = {}, baseDomainHint) {
