@@ -46,13 +46,15 @@ function buildKrakenEmbedUrl(fileId) {
 }
 
 function extractFilemoonFileIdFromUrl(rawUrl) {
-  const value = String(rawUrl || "").trim();
+  const value = String(rawUrl || "")
+    .replace(/^[\s"'`<>]+|[\s"'`<>]+$/g, "")
+    .trim();
   if (!value) {
     return "";
   }
 
   const match = value.match(
-    /(?:filemoon\.org|byse\.sx|bysezejataos\.com|[a-z0-9-]+\.sx|[a-z0-9-]+\.com)\/(?:[a-z]{2}\/|d\/)?([A-Za-z0-9]+)(?:\/(?:file|watch|embed|d\/[^/]+)?)?/i,
+    /(?:filemoon\.org|byse\.sx|bysezejataos\.com|[a-z0-9-]+\.sx|[a-z0-9-]+\.com)\/(?:[A-Za-z0-9_-]{1,8}\/){0,5}([A-Za-z0-9]{8,})(?:\/(?:file|watch|embed|[^/\s]{4,})?)?/i,
   );
 
   return match?.[1] || "";
@@ -173,17 +175,23 @@ function resolveFilemoonMediaLinks({
 } = {}) {
   const anyUrlForDomain =
     baseDomain || downloadUrl || watchUrl || embedUrl || "";
-  const resolvedFileId =
-    fileId ||
-    extractFilemoonFileIdFromUrl(downloadUrl) ||
-    extractFilemoonFileIdFromUrl(watchUrl) ||
-    extractFilemoonFileIdFromUrl(embedUrl);
+  let resolvedFileId = String(fileId || "").trim();
+  if (!resolvedFileId) {
+    resolvedFileId =
+      extractFilemoonFileIdFromUrl(downloadUrl) ||
+      extractFilemoonFileIdFromUrl(watchUrl) ||
+      extractFilemoonFileIdFromUrl(embedUrl);
+  }
+  const cleanCustomEmbed = String(embedUrl || "").trim();
+  const cleanCustomWatch = String(watchUrl || "").trim();
+  const cleanCustomDownload = String(downloadUrl || "").trim();
   const resolvedDownloadUrl =
-    downloadUrl || buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
+    cleanCustomDownload ||
+    buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
   const resolvedWatchUrl =
-    watchUrl || buildFilemoonWatchUrl(resolvedFileId, anyUrlForDomain);
+    cleanCustomWatch || buildFilemoonWatchUrl(resolvedFileId, anyUrlForDomain);
   const resolvedEmbedUrl =
-    embedUrl || buildFilemoonEmbedUrl(resolvedFileId, anyUrlForDomain);
+    cleanCustomEmbed || buildFilemoonEmbedUrl(resolvedFileId, anyUrlForDomain);
 
   return {
     fileId: resolvedFileId,
