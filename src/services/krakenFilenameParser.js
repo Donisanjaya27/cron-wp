@@ -45,19 +45,41 @@ function buildKrakenEmbedUrl(fileId) {
   return `https://krakenfiles.com/embed-video/${fileId}`;
 }
 
+function stripIframeAndExtractUrl(rawUrl) {
+  let value = String(rawUrl || "").trim();
+  if (!value) return "";
+  if (/^<\s*iframe\b/i.test(value)) {
+    const m = value.match(/\bsrc\s*=\s*["'`]?([^\s"'`>]+)/i);
+    if (m && m[1]) value = m[1].trim();
+  }
+  return value.replace(/^[\s"'`<>]+|[\s"'`<>]+$/g, "").trim();
+}
+
 function extractFilemoonFileIdFromUrl(rawUrl) {
-  const value = String(rawUrl || "")
-    .replace(/^[\s"'`<>]+|[\s"'`<>]+$/g, "")
-    .trim();
+  const value = stripIframeAndExtractUrl(rawUrl);
   if (!value) {
     return "";
   }
 
   const match = value.match(
-    /(?:filemoon\.org|byse\.sx|bysezejataos\.com|[a-z0-9-]+\.sx|[a-z0-9-]+\.com)\/(?:[A-Za-z0-9_-]{1,8}\/){0,5}([A-Za-z0-9]{8,})(?:\/(?:file|watch|embed|[^/\s]{4,})?)?/i,
+    /(?:filemoon\.org|byse\.sx|bysezejataos\.com|[a-z0-9-]+\.sx|[a-z0-9-]+\.com)\/(?:[A-Za-z0-9_-]{1,8}\/){0,5}([A-Za-z0-9]{6,})(?:\/(?:file|watch|embed|[^/\s]{4,})?)?/i,
   );
 
   return match?.[1] || "";
+}
+
+function extractFilemoonSlugSuffix(rawUrl, fallbackFileId) {
+  const value = stripIframeAndExtractUrl(rawUrl);
+  if (!value) return "";
+  const fileId = (
+    fallbackFileId ||
+    extractFilemoonFileIdFromUrl(value) ||
+    ""
+  ).trim();
+  if (!fileId) return "";
+  const after = value.split(`/${fileId}/`)[1] || "";
+  if (!after) return "";
+  return after.split(/[?#]/)[0].replace(/\/+$/, "").trim();
 }
 
 function extractDomainFromUrl(rawUrl) {
@@ -135,6 +157,30 @@ function buildFilemoonEmbedUrl(fileId, baseUrlOrDomain) {
   return `https://${host}/${fileId}/embed`;
 }
 
+function buildFilemoonEmbedUrlWithSlug(fileId, slug, baseUrlOrDomain) {
+  if (!fileId) return "";
+  const host = extractDomainFromUrl(baseUrlOrDomain || "https://filemoon.org");
+  const cleanSlug = String(slug || "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  if (cleanSlug) {
+    return `https://${host}/e/${fileId}/${cleanSlug}`;
+  }
+  return buildFilemoonEmbedUrl(fileId, baseUrlOrDomain);
+}
+
+function buildFilemoonDownloadUrlWithSlug(fileId, slug, baseUrlOrDomain) {
+  if (!fileId) return "";
+  const host = extractDomainFromUrl(baseUrlOrDomain || "https://filemoon.org");
+  const cleanSlug = String(slug || "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  if (cleanSlug) {
+    return `https://${host}/d/${fileId}/${cleanSlug}`;
+  }
+  return buildFilemoonPageUrl(fileId, baseUrlOrDomain);
+}
+
 function buildEmbedCode(embedUrl) {
   if (!embedUrl) {
     return "";
@@ -173,25 +219,122 @@ function resolveFilemoonMediaLinks({
   fileId,
   baseDomain,
 } = {}) {
+  const downloadInput = stripIframeAndExtractUrl(downloadUrl);
+  const embedInput = stripIframeAndExtractUrl(embedUrl);
+  const watchInput = stripIframeAndExtractUrl(watchUrl);
   const anyUrlForDomain =
-    baseDomain || downloadUrl || watchUrl || embedUrl || "";
+    baseDomain || downloadInput || watchInput || embedInput || "";
+
   let resolvedFileId = String(fileId || "").trim();
   if (!resolvedFileId) {
     resolvedFileId =
-      extractFilemoonFileIdFromUrl(downloadUrl) ||
-      extractFilemoonFileIdFromUrl(watchUrl) ||
-      extractFilemoonFileIdFromUrl(embedUrl);
+      extractFilemoonFileIdFromUrl(downloadInput) ||
+      extractFilemoonFileIdFromUrl(watchInput) ||
+      extractFilemoonFileIdFromUrl(embedInput);
   }
-  const cleanCustomEmbed = String(embedUrl || "").trim();
-  const cleanCustomWatch = String(watchUrl || "").trim();
-  const cleanCustomDownload = String(downloadUrl || "").trim();
-  const resolvedDownloadUrl =
-    cleanCustomDownload ||
-    buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
+
+  const anyUrlWithContent = downloadInput || watchInput || embedInput || "";
+  const slugSuffix =
+    extractFilemoonSlugSuffix(downloadInput, resolvedFileId) ||
+    extractFilemoonSlugSuffix(embedInput, resolvedFileId) ||
+    extractFilemoonSlugSuffix(watchInput, resolvedFileId) ||
+    extractFilemoonSlugSuffix(anyUrlWithContent, resolvedFileId) ||
+    "";
+
+  const downloadStartsWithE =
+    downloadInput && /^https?:\/\/[^/]+\/e\//i.test(downloadInput);
+  const embedStartsWithE =
+    embedInput && /^https?:\/\/[^/]+\/e\//i.test(embedInput);
+  const downloadStartsWithD =
+    downloadInput && /^https?:\/\/[^/]+\/d\//i.test(downloadInput);
+  const embedStartsWithD =
+    embedInput && /^https?:\/\/[^/]+\/d\//i.test(embedInput);
+
+  let resolvedEmbedUrl = "";
+  let resolvedDownloadUrl = "";
+
+  if (embedStartsWithE) {
+    resolvedEmbedUrl = embedInput;
+  } else if (downloadStartsWithE) {
+    resolvedEmbedUrl = downloadInput;
+  } else if (embedStartsWithD && resolvedFileId && slugSuffix) {
+    resolvedEmbedUrl = buildFilemoonEmbedUrlWithSlug(
+      resolvedFileId,
+      slugSuffix,
+      embedInput,
+    );
+  } else if (downloadStartsWithD && resolvedFileId && slugSuffix) {
+    resolvedEmbedUrl = buildFilemoonEmbedUrlWithSlug(
+      resolvedFileId,
+      slugSuffix,
+      downloadInput,
+    );
+  } else if (embedInput) {
+    resolvedEmbedUrl = embedInput;
+  } else if (resolvedFileId) {
+    resolvedEmbedUrl = slugSuffix
+      ? buildFilemoonEmbedUrlWithSlug(
+          resolvedFileId,
+          slugSuffix,
+          anyUrlForDomain,
+        )
+      : buildFilemoonEmbedUrl(resolvedFileId, anyUrlForDomain);
+  }
+
+  if (downloadStartsWithD) {
+    resolvedDownloadUrl = downloadInput;
+  } else if (embedStartsWithD) {
+    resolvedDownloadUrl = embedInput;
+  } else if (downloadStartsWithE && resolvedFileId && slugSuffix) {
+    resolvedDownloadUrl = buildFilemoonDownloadUrlWithSlug(
+      resolvedFileId,
+      slugSuffix,
+      downloadInput,
+    );
+  } else if (embedStartsWithE && resolvedFileId && slugSuffix) {
+    resolvedDownloadUrl = buildFilemoonDownloadUrlWithSlug(
+      resolvedFileId,
+      slugSuffix,
+      embedInput,
+    );
+  } else if (downloadInput) {
+    resolvedDownloadUrl = downloadInput;
+  } else if (resolvedFileId) {
+    resolvedDownloadUrl = slugSuffix
+      ? buildFilemoonDownloadUrlWithSlug(
+          resolvedFileId,
+          slugSuffix,
+          anyUrlForDomain,
+        )
+      : buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
+  }
+
   const resolvedWatchUrl =
-    cleanCustomWatch || buildFilemoonWatchUrl(resolvedFileId, anyUrlForDomain);
-  const resolvedEmbedUrl =
-    cleanCustomEmbed || buildFilemoonEmbedUrl(resolvedFileId, anyUrlForDomain);
+    watchInput ||
+    (resolvedFileId
+      ? buildFilemoonWatchUrl(resolvedFileId, anyUrlForDomain)
+      : "");
+
+  const embedOk =
+    resolvedEmbedUrl &&
+    /^(https?:)?\/\//i.test(resolvedEmbedUrl) &&
+    resolvedEmbedUrl.includes(`/${resolvedFileId}/`);
+  if (!embedOk && resolvedFileId && slugSuffix) {
+    resolvedEmbedUrl = buildFilemoonEmbedUrlWithSlug(
+      resolvedFileId,
+      slugSuffix,
+      anyUrlForDomain,
+    );
+  }
+  if (!resolvedDownloadUrl && resolvedFileId) {
+    resolvedDownloadUrl = slugSuffix
+      ? buildFilemoonDownloadUrlWithSlug(
+          resolvedFileId,
+          slugSuffix,
+          anyUrlForDomain,
+        )
+      : buildFilemoonPageUrl(resolvedFileId, anyUrlForDomain);
+  }
 
   return {
     fileId: resolvedFileId,
