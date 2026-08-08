@@ -104,9 +104,11 @@ const providerConfigs = {
       const tmdbIdRaw = formData.get("filemoonTmdbId");
       const seasonRaw = formData.get("filemoonSeasonNumber");
       const episodeRaw = formData.get("filemoonEpisodeNumber");
+      const tmdbApiKeyRaw = formData.get("filemoonTmdbApiKey");
       const tmdbId = tmdbIdRaw ? Number(tmdbIdRaw) : undefined;
       const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
       const episodeNumber = episodeRaw ? Number(episodeRaw) : undefined;
+      const tmdbApiKey = tmdbApiKeyRaw ? String(tmdbApiKeyRaw).trim() : "";
 
       const payload = {
         filemoonUrl: url,
@@ -123,6 +125,9 @@ const providerConfigs = {
       if (episodeNumber && Number.isInteger(episodeNumber) && episodeNumber >= 1) {
         payload.episodeNumber = episodeNumber;
       }
+      if (tmdbApiKey) {
+        payload.tmdbApiKey = tmdbApiKey;
+      }
       return payload;
     },
     fillExample() {
@@ -134,6 +139,11 @@ const providerConfigs = {
         this.examplePayload.seasonNumber;
       this.form.elements.namedItem("filemoonEpisodeNumber").value =
         this.examplePayload.episodeNumber;
+      const existingTmdbApiKey =
+        this.form.elements.namedItem("filemoonTmdbApiKey").value || "";
+      if (!existingTmdbApiKey && typeof this.examplePayload.tmdbApiKey === "string" && this.examplePayload.tmdbApiKey) {
+        this.form.elements.namedItem("filemoonTmdbApiKey").value = this.examplePayload.tmdbApiKey;
+      }
       this.form.elements.namedItem("filemoonSubmitAction").value =
         this.examplePayload.submitAction;
       document.getElementById("filemoonCheckOnly").checked =
