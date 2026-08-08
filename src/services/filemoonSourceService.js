@@ -65,12 +65,15 @@ async function fetchFilemoonFileInfo(fileId, payload = {}) {
   const result = await fetchFilemoonJson("/file/info", payload, {
     file_code: fileId,
   });
-  return (
+  const unwrapped =
     result?.data ||
     result?.result ||
     (result?.success === true ? result : null) ||
-    null
-  );
+    null;
+  if (Array.isArray(unwrapped)) {
+    return unwrapped[0] || null;
+  }
+  return unwrapped;
 }
 
 function normalizeFilemoonInfoUrls(fileId, fileInfo = {}, baseDomainHint) {
@@ -117,19 +120,48 @@ async function resolveFilemoonSource(payload = {}) {
   const fileName =
     payload.fileName ||
     payload.filename ||
+    fileInfo?.file_title ||
+    fileInfo?.file_name ||
+    fileInfo?.fileName ||
+    fileInfo?.title ||
     fileInfo?.filename ||
     fileInfo?.name ||
     "";
 
   return {
-    fileId: mediaLinks.fileId,
+    fileId:
+      mediaLinks.fileId ||
+      fileInfo?.file_code ||
+      fileInfo?.fileCode ||
+      fileInfo?.file_id ||
+      fileInfo?.id,
     fileName,
     mediaLinks,
     fileInfo: fileInfo
       ? {
-          id: fileInfo.id,
-          name: fileInfo.name,
-          filename: fileInfo.filename,
+          id:
+            fileInfo.id ||
+            fileInfo.file_code ||
+            fileInfo.fileCode ||
+            fileInfo.file_id,
+          name:
+            fileInfo.file_title ||
+            fileInfo.file_name ||
+            fileInfo.fileName ||
+            fileInfo.title ||
+            fileInfo.name ||
+            fileInfo.filename,
+          filename:
+            fileInfo.file_title ||
+            fileInfo.file_name ||
+            fileInfo.fileName ||
+            fileInfo.title ||
+            fileInfo.filename ||
+            fileInfo.name,
+          canplay: fileInfo.canplay,
+          status: fileInfo.status,
+          fileCode: fileInfo.file_code || fileInfo.fileCode,
+          length: fileInfo.file_length,
           allowOnlineWatch: fileInfo.allow_online_watch,
           visibility: fileInfo.visibility,
           urls,
